@@ -170,8 +170,23 @@
 .md-render h3 { font-size: 1.1rem; }
 .md-render p { margin: 0.65em 0; }
 .md-render ul,
-.md-render ol { margin: 0.65em 0; padding-left: 1.35em; }
-.md-render li { margin: 0.25em 0; }
+.md-render ol {
+  margin: 0.65em 0;
+  padding-left: 1.5em;
+}
+.md-render ul {
+  list-style-type: disc;
+}
+.md-render ol {
+  list-style-type: decimal;
+}
+.md-render li {
+  margin: 0.25em 0;
+  display: list-item;
+}
+.md-render li > p {
+  margin: 0.15em 0;
+}
 .md-render a { color: #4f46e5; text-decoration: underline; text-underline-offset: 2px; }
 .md-render code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
