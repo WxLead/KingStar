@@ -1,0 +1,20 @@
+import { Routes, Route, Navigate } from 'react-router'
+import AppLayout from './AppLayout'
+import ParsePage from '@/pages/ParsePage'
+import TasksPage from '@/pages/TasksPage'
+import LibraryPage from '@/pages/LibraryPage'
+import FavoritesPage from '@/pages/FavoritesPage'
+
+export default function App() {
+  return (
+    <Routes>
+      <Route element={<AppLayout />}>
+        <Route index element={<ParsePage />} />
+        <Route path="tasks" element={<TasksPage />} />
+        <Route path="library" element={<LibraryPage />} />
+        <Route path="favorites" element={<FavoritesPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
+    </Routes>
+  )
+}

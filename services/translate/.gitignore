@@ -1,0 +1,21 @@
+# Secrets
+.env
+
+# Caches (keep locally; do not commit)
+cache/
+__pycache__/
+*.pyc
+.pytest_cache/
+tools/
+
+# Generated outputs
+outputs/
+*.pdf
+*.html
+.*.tmp.html
+!*.example
+
+# Optional local leftovers
+*_polished.md
+*_paper.html
+*_zh.md

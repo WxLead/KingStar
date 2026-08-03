@@ -1,0 +1,17 @@
+{
+  "TaskStatus": ["queued", "parsing", "translating", "done", "failed"],
+  "ArtifactName": ["markdown", "zh_markdown", "pdf", "middle_json", "content_list"],
+  "SupportedExtensions": [
+    ".pdf",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".ppt",
+    ".pptx",
+    ".doc",
+    ".docx",
+    ".txt",
+    ".md"
+  ]
+}

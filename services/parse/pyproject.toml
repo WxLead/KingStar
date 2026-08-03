@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "start-parse"
+version = "0.1.0"
+description = "StarT parse adapter over MinerU mineru-api"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "httpx>=0.27.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

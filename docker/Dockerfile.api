@@ -1,0 +1,26 @@
+# StarT API (BFF)
+FROM python:3.12-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY services/parse /app/services/parse
+COPY services/translate /app/services/translate
+COPY services/api /app/services/api
+
+RUN pip install --no-cache-dir -e /app/services/parse -e /app/services/translate -e /app/services/api \
+    && playwright install --with-deps chromium || true
+
+ENV START_DATA_DIR=/data \
+    MINERU_API_URL=http://mineru-api:8000 \
+    START_API_HOST=0.0.0.0 \
+    START_API_PORT=8080
+
+VOLUME ["/data"]
+EXPOSE 8080
+
+WORKDIR /app/services/api
+CMD ["uvicorn", "start_api.main:app", "--host", "0.0.0.0", "--port", "8080"]

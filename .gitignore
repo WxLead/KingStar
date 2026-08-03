@@ -1,24 +1,44 @@
-# Logs
+# Logs / OS
 logs
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+.DS_Store
+Thumbs.db
 
+# Node
 node_modules
 dist
 dist-ssr
 *.local
+apps/web/node_modules
+apps/web/dist
 
-# Editor directories and files
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+**/.venv/
+*.egg-info/
+.pytest_cache/
+services/api/.data/
+services/translate/cache/
+services/translate/outputs/
+services/translate/.env
+.env
+.env.*
+!.env.example
+!**/.env.example
+!docker/.env.example
+
+# Editor
 .vscode/*
 !.vscode/extensions.json
 .idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# Generated
+*.pdf
+!.gitkeep

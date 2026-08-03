@@ -1,0 +1,23 @@
+# Non-secret defaults (API keys stay in .env).
+# Priority: CLI flags > env overrides > this file > built-in defaults.
+
+translate:
+  concurrency: 3
+  cache_dir: cache/translate
+
+beautify:
+  max_chars: 3500
+  cache_dir: cache/html_beautify
+
+pdf:
+  page_margin:
+    top: 18mm
+    right: 16mm
+    bottom: 18mm
+    left: 16mm
+  body_max_width: 180mm
+  image_max_height: 90mm
+
+paths:
+  outputs_dir: outputs
+  cache_root: cache

@@ -1,0 +1,5 @@
+openai>=1.40.0
+python-dotenv>=1.0.0
+Markdown>=3.4.0
+playwright>=1.40.0
+PyYAML>=6.0.0

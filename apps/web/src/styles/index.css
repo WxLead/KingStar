@@ -1,0 +1,251 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.625rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+/* ===== StarT 主题：科研级靛蓝紫配色 + 活泼圆润字体 ===== */
+@layer base {
+  body {
+    font-family: 'Outfit', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer utilities {
+  /* 展示字体：Outfit，用于 Logo 与标题 */
+  .font-display {
+    font-family: 'Outfit', 'Noto Sans SC', 'PingFang SC', sans-serif;
+    font-weight: 800;
+  }
+  .text-ink {
+    color: #1e2a52;
+  }
+  .text-ink-soft {
+    color: #5a6486;
+  }
+}
+
+/* 全局隐藏滚动条 */
+@layer base {
+  html, body {
+    overflow: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  *::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* 预览区等可滚动容器：保留滚动、彻底隐藏滚动条 */
+@layer utilities {
+  .scrollbar-hidden {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-hidden::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+}
+
+/* ===== 渐变流光文字 ===== */
+.text-gradient-flow {
+  background: linear-gradient(90deg, #4f46e5, #7c3aed, #0ea5e9, #7c3aed, #4f46e5);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gradient-flow 7s linear infinite;
+}
+@keyframes gradient-flow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 300% 50%; }
+}
+
+/* ===== 按钮扫光效果 ===== */
+.btn-shine {
+  position: relative;
+  overflow: hidden;
+}
+.btn-shine::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -90%;
+  width: 55%;
+  height: 100%;
+  background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+  transform: skewX(-20deg);
+  transition: left 0.7s ease;
+  pointer-events: none;
+}
+.btn-shine:hover::after {
+  left: 140%;
+}
+
+/* ===== Markdown 渲染（右栏解析结果） ===== */
+.md-render h1,
+.md-render h2,
+.md-render h3,
+.md-render h4 {
+  font-weight: 700;
+  color: #1e2a52;
+  margin: 1.1em 0 0.45em;
+  line-height: 1.35;
+}
+.md-render h1 { font-size: 1.45rem; }
+.md-render h2 { font-size: 1.25rem; }
+.md-render h3 { font-size: 1.1rem; }
+.md-render p { margin: 0.65em 0; }
+.md-render ul,
+.md-render ol { margin: 0.65em 0; padding-left: 1.35em; }
+.md-render li { margin: 0.25em 0; }
+.md-render a { color: #4f46e5; text-decoration: underline; text-underline-offset: 2px; }
+.md-render code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.88em;
+  background: #f3f4fb;
+  color: #7c3aed;
+  padding: 0.12em 0.35em;
+  border-radius: 0.35rem;
+}
+.md-render pre {
+  margin: 0.85em 0;
+  padding: 0.85rem 1rem;
+  overflow-x: auto;
+  border-radius: 0.85rem;
+  background: #f6f7fc;
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+.md-render pre code {
+  background: transparent;
+  padding: 0;
+  color: #1e2a52;
+}
+.md-render blockquote {
+  margin: 0.85em 0;
+  padding-left: 0.9em;
+  border-left: 3px solid #c7cbe5;
+  color: #6a70a0;
+}
+.md-render table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.85em 0;
+  font-size: 0.9em;
+}
+.md-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  margin: 0.85em 0;
+  border-radius: 0.5rem;
+  border: 1px solid #e8eaf3;
+}
+.md-table-wrap table {
+  margin: 0;
+  border: none;
+}
+.md-render th,
+.md-render td {
+  border: 1px solid #e8eaf3;
+  padding: 0.45em 0.65em;
+  vertical-align: top;
+  text-align: left;
+}
+.md-render th { background: #f6f7fc; font-weight: 600; }
+.md-render img { max-width: 100%; height: auto; border-radius: 0.5rem; }
+.md-render hr { border: none; border-top: 1px solid #eceef6; margin: 1.25em 0; }
+
+/* KaTeX formulas */
+.md-render .katex { font-size: 1.05em; }
+.md-render .katex-display {
+  margin: 0.95em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.15em 0;
+}
+.md-render .katex-error {
+  color: #b45309;
+  background: #fff7ed;
+  padding: 0.1em 0.25em;
+  border-radius: 0.25rem;
+}
+
+/* Bidirectional hover between PDF box and MD segment */
+.md-seg-hot {
+  background: color-mix(in srgb, var(--seg-color) 14%, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--seg-color);
+}

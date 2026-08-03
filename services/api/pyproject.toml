@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "start-api"
+version = "0.1.0"
+description = "StarT product BFF (FastAPI)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.30.0",
+  "python-multipart>=0.0.9",
+  "httpx>=0.27.0",
+]
+
+[project.scripts]
+start-api = "start_api.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
