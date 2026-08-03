@@ -3,10 +3,10 @@ import { Plus, LayoutList, BookOpen, Star, Languages, ScanSearch } from 'lucide-
 
 function StarTLogo() {
   return (
-    <div className="flex items-center gap-3 px-2">
+    <div className="flex items-center gap-3.5 px-2">
       <motion.svg
-        width="40"
-        height="40"
+        width="48"
+        height="48"
         viewBox="0 0 40 40"
         fill="none"
         whileHover={{ rotate: 12, scale: 1.08 }}
@@ -25,8 +25,8 @@ function StarTLogo() {
         </defs>
       </motion.svg>
       <div className="leading-tight">
-        <span className="font-display block text-[26px] text-ink">StarT</span>
-        <span className="block text-[11px] font-medium tracking-wide text-[#9aa0b8]">论文解析 · 翻译 · 解读</span>
+        <span className="font-display block text-[32px] text-ink">StarT</span>
+        <span className="block text-[13px] font-medium tracking-wide text-[#9aa0b8]">论文解析 · 翻译 · 解读</span>
       </div>
     </div>
   )
@@ -48,7 +48,7 @@ function NavItem({
   return (
     <motion.button
       whileHover={{ x: 3 }}
-      className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-semibold transition-colors duration-200 ${
+      className={`flex w-full items-center gap-3.5 rounded-xl px-4 py-3.5 text-[17px] font-semibold transition-colors duration-200 ${
         active
           ? 'bg-white text-[#4f46e5] shadow-sm'
           : primary
@@ -59,7 +59,7 @@ function NavItem({
       {icon}
       <span className="flex-1 text-left">{label}</span>
       {badge && (
-        <span className="rounded-full bg-[#eef0fb] px-2 py-0.5 text-[11px] font-bold text-[#6a70a0]">{badge}</span>
+        <span className="rounded-full bg-[#eef0fb] px-2.5 py-0.5 text-[13px] font-bold text-[#6a70a0]">{badge}</span>
       )}
     </motion.button>
   )
@@ -70,18 +70,18 @@ function RecentFile({ name, meta, type }: { name: string; meta: string; type: 'p
   return (
     <motion.button
       whileHover={{ x: 3 }}
-      className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-white"
+      className="flex w-full items-center gap-3.5 rounded-xl px-2.5 py-2.5 text-left transition-colors hover:bg-white"
     >
       <span
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm ${
+        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white shadow-sm ${
           type === 'pdf' ? 'text-[#e23f2b]' : 'text-[#4f46e5]'
         }`}
       >
-        {type === 'pdf' ? <ScanSearch size={17} /> : <Languages size={17} />}
+        {type === 'pdf' ? <ScanSearch size={20} /> : <Languages size={20} />}
       </span>
       <span className="min-w-0">
-        <span className="block truncate text-[14px] font-semibold text-ink">{name}</span>
-        <span className="mt-0.5 block text-[12px] text-[#9aa0b8]">{meta}</span>
+        <span className="block truncate text-[16px] font-semibold text-ink">{name}</span>
+        <span className="mt-0.5 block text-[14px] text-[#9aa0b8]">{meta}</span>
       </span>
     </motion.button>
   )
@@ -98,26 +98,26 @@ const item = {
 
 export default function Sidebar() {
   return (
-    <aside className="sticky top-0 flex h-screen w-[264px] shrink-0 flex-col self-start bg-[#f5f6fb] px-4 pb-5 pt-6">
+    <aside className="sticky top-0 flex h-screen w-[320px] shrink-0 flex-col self-start bg-[#f5f6fb] px-5 pb-6 pt-7">
       <motion.div variants={container} initial="hidden" animate="show" className="flex flex-1 flex-col">
         <motion.div variants={item}>
           <StarTLogo />
         </motion.div>
 
         {/* 功能导航 */}
-        <motion.nav variants={item} className="mt-6 space-y-1">
-          <NavItem icon={<Plus size={19} strokeWidth={2.5} />} label="新解析" primary />
-          <NavItem icon={<LayoutList size={19} />} label="任务管理" active badge="3" />
-          <NavItem icon={<BookOpen size={19} />} label="文献库" />
-          <NavItem icon={<Star size={19} />} label="我的收藏" />
+        <motion.nav variants={item} className="mt-8 space-y-1.5">
+          <NavItem icon={<Plus size={22} strokeWidth={2.5} />} label="新解析" primary />
+          <NavItem icon={<LayoutList size={22} />} label="任务管理" active badge="3" />
+          <NavItem icon={<BookOpen size={22} />} label="文献库" />
+          <NavItem icon={<Star size={22} />} label="我的收藏" />
         </motion.nav>
 
-        <motion.div variants={item} className="mx-1 my-4 border-t border-[#e4e6f0]" />
+        <motion.div variants={item} className="mx-1 my-5 border-t border-[#e4e6f0]" />
 
         {/* 最近解析 */}
         <motion.div variants={item}>
-          <p className="mb-1.5 px-3 text-[12px] font-bold tracking-wider text-[#9aa0b8]">最近解析</p>
-          <div className="space-y-0.5">
+          <p className="mb-2 px-3.5 text-[14px] font-bold tracking-wider text-[#9aa0b8]">最近解析</p>
+          <div className="space-y-1">
             <RecentFile name="Unified World Models Co…" meta="版面分析 · 15.7MB" type="pdf" />
             <RecentFile name="Attention Is All You Need" meta="已翻译 · 2.1MB" type="trans" />
             <RecentFile name="Scaling Laws for Neural…" meta="解读完成 · 4.8MB" type="trans" />

@@ -40,20 +40,20 @@ export default function ParseCard() {
       variants={stagger}
       initial="hidden"
       animate="show"
-      className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#e8e9f4] bg-[#f8f8fd]"
+      className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-[#e8e9f4] bg-[#f8f8fd]"
     >
-      <button className="absolute right-6 top-5 z-10 flex items-center gap-1.5 text-[15px] text-ink-soft transition-colors hover:text-[#4f46e5]">
-        <Settings size={17} />
+      <button className="absolute right-7 top-6 z-10 flex items-center gap-2 text-[17px] text-ink-soft transition-colors hover:text-[#4f46e5]">
+        <Settings size={20} />
         设置
       </button>
 
-      <div className="mx-auto flex w-full max-w-[860px] flex-1 flex-col justify-center overflow-y-auto px-10 py-5">
+      <div className="mx-auto flex w-full max-w-[1040px] flex-1 flex-col justify-center overflow-y-auto px-12 py-7">
         {/* 标题区 */}
         <motion.div variants={rise} className="flex flex-col items-center">
-          <h1 className="text-gradient-flow font-display text-[30px] leading-tight tracking-wide">
+          <h1 className="text-gradient-flow font-display text-[38px] leading-tight tracking-wide">
             StarT智能解析
           </h1>
-          <p className="mt-2 text-center text-[13.5px] text-ink-soft">
+          <p className="mt-3 text-center text-[16px] text-ink-soft">
             支持多种格式文档上传或在线链接，为您提供专业的版面分析
           </p>
         </motion.div>
@@ -61,17 +61,17 @@ export default function ParseCard() {
         {/* 拖拽上传区 */}
         <motion.div
           variants={rise}
-          className="mt-4 rounded-xl border-2 border-dashed border-[#c9cbe8] bg-white/70 px-8 pb-4 pt-5 transition-colors hover:border-[#a5a8e0] hover:bg-white"
+          className="mt-6 rounded-2xl border-2 border-dashed border-[#c9cbe8] bg-white/70 px-10 pb-5 pt-7 transition-colors hover:border-[#a5a8e0] hover:bg-white"
         >
           <div className="flex flex-col items-center">
             <motion.div
               animate={{ y: [0, -6, 0] }}
               transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
-              className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#eef0fd] to-[#e4e6fb] shadow-sm"
+              className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#eef0fd] to-[#e4e6fb] shadow-sm"
             >
-              <CloudUpload size={26} className="text-[#4f46e5]" />
+              <CloudUpload size={30} className="text-[#4f46e5]" />
             </motion.div>
-            <p className="mt-2.5 text-[15px] font-bold text-ink">
+            <p className="mt-3.5 text-[17px] font-bold text-ink">
               拖拽文件到此处，或
               <button
                 onClick={() => fileInputRef.current?.click()}
@@ -85,18 +85,18 @@ export default function ParseCard() {
               whileHover={{ y: -2, boxShadow: '0 10px 28px rgba(99,68,229,0.4)' }}
               whileTap={{ scale: 0.97 }}
               onClick={() => fileInputRef.current?.click()}
-              className="btn-shine mt-3 flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#4f46e5] to-[#7c3aed] px-6 py-2.5 text-[14px] font-bold text-white shadow-[0_6px_20px_rgba(99,68,229,0.3)]"
+              className="btn-shine mt-4 flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-[#4f46e5] to-[#7c3aed] px-7 py-3 text-[16px] font-bold text-white shadow-[0_6px_20px_rgba(99,68,229,0.3)]"
             >
-              <Upload size={16} />
+              <Upload size={18} />
               选择文件上传
             </motion.button>
             <input ref={fileInputRef} type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.gif,.ppt,.pptx,.doc,.docx,.txt,.md" />
           </div>
 
           {/* 支持的文件格式 */}
-          <div className="mt-4 border-t border-[#eceef6] pt-3">
-            <p className="text-[13px] font-bold text-ink">支持的文件格式</p>
-            <div className="mt-2.5 grid grid-cols-6 gap-2.5">
+          <div className="mt-5 border-t border-[#eceef6] pt-4">
+            <p className="text-[15px] font-bold text-ink">支持的文件格式</p>
+            <div className="mt-3 grid grid-cols-6 gap-3">
               {formats.map((f, i) => (
                 <motion.div
                   key={f.name}
@@ -104,12 +104,12 @@ export default function ParseCard() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.5 + i * 0.06, duration: 0.4 }}
                   whileHover={{ y: -3, boxShadow: '0 6px 18px rgba(30,42,82,0.1)' }}
-                  className="flex cursor-default items-center gap-2 rounded-lg border border-[#eceef6] bg-white px-2.5 py-2"
+                  className="flex cursor-default items-center gap-2.5 rounded-xl border border-[#eceef6] bg-white px-3 py-2.5"
                 >
-                  <f.icon size={18} style={{ color: f.color }} className="shrink-0" />
+                  <f.icon size={22} style={{ color: f.color }} className="shrink-0" />
                   <div className="min-w-0 leading-tight">
-                    <p className="text-[12.5px] font-bold text-ink">{f.name}</p>
-                    <p className="mt-0.5 truncate text-[11px] text-[#9aa0b8]">{f.ext}</p>
+                    <p className="text-[14px] font-bold text-ink">{f.name}</p>
+                    <p className="mt-0.5 truncate text-[12px] text-[#9aa0b8]">{f.ext}</p>
                   </div>
                 </motion.div>
               ))}
@@ -118,32 +118,32 @@ export default function ParseCard() {
         </motion.div>
 
         {/* 或 */}
-        <motion.p variants={rise} className="my-2 text-center text-[12.5px] font-semibold text-[#9aa0b8]">
+        <motion.p variants={rise} className="my-3 text-center text-[15px] font-semibold text-[#9aa0b8]">
           或
         </motion.p>
 
         {/* 链接输入区 */}
         <motion.div variants={rise}>
-          <div className="flex items-center gap-1.5 text-[13.5px] font-bold text-ink">
-            <LinkIcon size={15} className="text-[#4f46e5]" />
+          <div className="flex items-center gap-2 text-[16px] font-bold text-ink">
+            <LinkIcon size={18} className="text-[#4f46e5]" />
             输入文档链接
           </div>
-          <div className="mt-2 flex gap-3">
+          <div className="mt-2.5 flex gap-3.5">
             <input
               type="text"
               placeholder="粘贴文档链接（支持 PDF 链接、在线文档等）"
-              className="h-11 flex-1 rounded-xl border border-[#dfe1f0] bg-white px-4 text-[14px] text-ink outline-none transition-all placeholder:text-[#a8adc4] focus:border-[#4f46e5] focus:ring-4 focus:ring-[#4f46e5]/10"
+              className="h-[3.25rem] flex-1 rounded-xl border border-[#dfe1f0] bg-white px-5 text-[16px] text-ink outline-none transition-all placeholder:text-[#a8adc4] focus:border-[#4f46e5] focus:ring-4 focus:ring-[#4f46e5]/10"
             />
             <motion.button
               whileHover={{ y: -2, boxShadow: '0 10px 28px rgba(99,68,229,0.4)' }}
               whileTap={{ scale: 0.97 }}
-              className="btn-shine flex h-11 items-center gap-2 rounded-xl bg-gradient-to-r from-[#4f46e5] to-[#7c3aed] px-5 text-[14px] font-bold text-white shadow-[0_6px_20px_rgba(99,68,229,0.3)]"
+              className="btn-shine flex h-[3.25rem] items-center gap-2.5 rounded-xl bg-gradient-to-r from-[#4f46e5] to-[#7c3aed] px-6 text-[16px] font-bold text-white shadow-[0_6px_20px_rgba(99,68,229,0.3)]"
             >
-              <Globe size={16} />
+              <Globe size={18} />
               解析链接
             </motion.button>
           </div>
-          <p className="mt-2 text-[12px] text-[#9aa0b8]">支持 arXiv、Google Drive、OneDrive、GitHub、官网链接等</p>
+          <p className="mt-2.5 text-[14px] text-[#9aa0b8]">支持 arXiv、Google Drive、OneDrive、GitHub、官网链接等</p>
         </motion.div>
       </div>
     </motion.div>
