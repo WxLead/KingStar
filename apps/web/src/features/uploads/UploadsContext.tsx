@@ -59,11 +59,23 @@ export function UploadsProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const hasActiveJob = useMemo(
+    () =>
+      items.some((i) => {
+        const s = i.pipeline_stage || i.last_status
+        return s === 'queued' || s === 'parsing' || s === 'translating'
+      }),
+    [items],
+  )
+
   useEffect(() => {
     void refresh()
-    const timer = window.setInterval(() => void refresh(), 5000)
-    return () => window.clearInterval(timer)
   }, [refresh])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => void refresh(), hasActiveJob ? 2000 : 5000)
+    return () => window.clearInterval(timer)
+  }, [refresh, hasActiveJob])
 
   const upload = useCallback(
     async (file: File) => {
