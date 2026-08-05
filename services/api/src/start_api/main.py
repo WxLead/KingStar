@@ -421,22 +421,30 @@ def _translate_task_markdown(task_id: str, task: dict[str, Any], *, beautify: bo
     task["updated_at"] = _now()
     _save_task(task)
 
-    from start_translate import beautify_and_export, export_pdf, translate_markdown
+    from start_translate.api import beautify_and_export, export_pdf, translate_markdown
 
     zh_path = work / "document_zh.md"
     pdf_path = work / ("document_zh_beautify.pdf" if beautify else "document_zh.pdf")
     translate_markdown(md_path, zh_path, doc_stem=task_id, force=True)
     _translate_content_list(work, doc_stem=task_id)
-    if beautify:
-        html_path = work / "document_zh_beautify.html"
-        beautify_and_export(zh_path, pdf_path, html_path, doc_stem=task_id)
-    else:
-        export_pdf(zh_path, pdf_path, doc_stem=task_id)
+    # PDF is best-effort — MD translation success must not be marked failed if export breaks
+    try:
+        if beautify:
+            html_path = work / "document_zh_beautify.html"
+            beautify_and_export(zh_path, pdf_path, html_path, doc_stem=task_id)
+        else:
+            export_pdf(zh_path, pdf_path, doc_stem=task_id)
+    except Exception as pdf_err:  # noqa: BLE001
+        # Leave zh markdown usable; export can be retried from the UI
+        result = task.get("result") if isinstance(task.get("result"), dict) else {}
+        result["pdf_error"] = str(pdf_err)
+        task["result"] = result
 
     result = task.get("result") if isinstance(task.get("result"), dict) else {}
     result["markdown_url"] = result.get("markdown_url") or f"/api/v1/tasks/{task_id}/artifacts/markdown"
     result["zh_markdown_url"] = f"/api/v1/tasks/{task_id}/artifacts/zh_markdown"
-    result["pdf_url"] = f"/api/v1/tasks/{task_id}/artifacts/pdf"
+    if pdf_path.is_file():
+        result["pdf_url"] = f"/api/v1/tasks/{task_id}/artifacts/pdf"
     if (work / "content_list_zh.json").is_file():
         result["content_list_zh_url"] = f"/api/v1/tasks/{task_id}/artifacts/content_list_zh"
     task["result"] = result
@@ -679,6 +687,135 @@ class ExportPdfRequest(BaseModel):
     source: str = Field(default="en", description="en = document.md, zh = document_zh.md")
 
 
+class LayoutSaveRequest(BaseModel):
+    """Persist manual layout corrections (Plan A)."""
+
+    middle: dict[str, Any]
+    content_list: list[Any]
+
+
+def _img_names_from_content_list(content_list: list[Any]) -> set[str]:
+    names: set[str] = set()
+    for item in content_list:
+        if not isinstance(item, dict):
+            continue
+        path = str(item.get("img_path") or "").replace("\\", "/").strip()
+        if not path:
+            continue
+        name = Path(path).name
+        if name and name not in {".", ".."}:
+            names.add(name)
+    return names
+
+
+@app.put("/api/v1/tasks/{task_id}/layout")
+def save_task_layout(task_id: str, body: LayoutSaveRequest) -> dict[str, Any]:
+    """Save edited middle.json + content_list.json and rebuild document.md."""
+    task = _load_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="task not found")
+    if task.get("status") in {"queued", "parsing", "translating"}:
+        raise HTTPException(status_code=409, detail=f"task is busy ({task.get('status')})")
+
+    work = _task_path(task_id)
+    if not (work / "middle.json").is_file() and not (work / "content_list.json").is_file():
+        raise HTTPException(status_code=400, detail="no layout artifacts to edit")
+
+    from start_api.layout_rebuild import rebuild_markdown_from_content_list
+
+    middle_path = work / "middle.json"
+    cl_path = work / "content_list.json"
+    md_path = work / "document.md"
+
+    old_names: set[str] = set()
+    if cl_path.is_file():
+        try:
+            old_cl = json.loads(cl_path.read_text(encoding="utf-8"))
+            if isinstance(old_cl, list):
+                old_names = _img_names_from_content_list(old_cl)
+        except Exception:
+            old_names = set()
+
+    middle_path.write_text(
+        json.dumps(body.middle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    cl_path.write_text(
+        json.dumps(body.content_list, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    md_path.write_text(
+        rebuild_markdown_from_content_list(body.content_list),
+        encoding="utf-8",
+    )
+
+    # Drop image files no longer referenced by content_list
+    new_names = _img_names_from_content_list(
+        body.content_list if isinstance(body.content_list, list) else []
+    )
+    img_dir = work / "images"
+    if img_dir.is_dir():
+        for name in old_names - new_names:
+            try:
+                p = img_dir / name
+                if p.is_file():
+                    p.unlink()
+            except Exception:
+                pass
+
+    # Stale ZH link segments / translation no longer match English layout
+    for stale in (work / "content_list_zh.json",):
+        if stale.is_file():
+            stale.unlink()
+
+    result = task.get("result") if isinstance(task.get("result"), dict) else {}
+    result["markdown_url"] = f"/api/v1/tasks/{task_id}/artifacts/markdown"
+    result["middle_json_url"] = f"/api/v1/tasks/{task_id}/artifacts/middle_json"
+    result["content_list_url"] = f"/api/v1/tasks/{task_id}/artifacts/content_list"
+    result.pop("content_list_zh_url", None)
+    task["result"] = result
+    task["updated_at"] = _now()
+    _save_task(task)
+
+    return {
+        "ok": True,
+        "task_id": task_id,
+        "zh_stale": (work / "document_zh.md").is_file(),
+    }
+
+
+@app.post("/api/v1/tasks/{task_id}/images")
+async def upload_task_image(
+    task_id: str,
+    file: UploadFile = File(...),
+) -> dict[str, Any]:
+    """Upload a cropped figure (e.g. from image_body edit) into the task images/ folder."""
+    task = _load_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="task not found")
+    if task.get("status") in {"queued", "parsing", "translating"}:
+        raise HTTPException(status_code=409, detail=f"task is busy ({task.get('status')})")
+
+    raw_name = Path(file.filename or "crop.png").name
+    suf = Path(raw_name).suffix.lower()
+    if suf not in {".png", ".jpg", ".jpeg", ".webp", ".gif"}:
+        suf = ".png"
+    safe = f"edit_{uuid.uuid4().hex[:12]}{suf}"
+    img_dir = _task_path(task_id) / "images"
+    img_dir.mkdir(parents=True, exist_ok=True)
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="empty image")
+    if len(data) > 40 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="image too large")
+    (img_dir / safe).write_bytes(data)
+    return {
+        "filename": safe,
+        "img_path": f"images/{safe}",
+        "url": f"/api/v1/tasks/{task_id}/images/{safe}",
+    }
+
+
 @app.post("/api/v1/tasks/{task_id}/translate", response_model=TaskCreateResponse)
 def translate_existing_task(
     task_id: str,
@@ -761,7 +898,7 @@ def export_task_pdf(task_id: str, body: ExportPdfRequest | None = None) -> FileR
             raise HTTPException(status_code=400, detail="document.md not found")
 
     try:
-        from start_translate import export_pdf
+        from start_translate.api import export_pdf
 
         export_pdf(md_path, pdf_path, doc_stem=f"{task_id}_{source}")
     except Exception as err:  # noqa: BLE001

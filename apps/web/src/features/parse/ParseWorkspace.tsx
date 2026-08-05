@@ -20,10 +20,14 @@ import {
   loadParseArtifacts,
   ensureLinkZh,
   fetchArtifactJson,
+  fetchArtifactText,
   pollTask,
+  saveTaskLayout,
+  uploadTaskImage,
   type UploadItem,
 } from '@/services/api'
 import { getCachedUploadBlob } from '@/features/parse/previewCache'
+import { cropPdfPageRegion } from '@/features/parse/cropPdfRegion'
 import ParseConfigPanel, {
   modeToBackend,
   PARSE_MODE_OPTIONS,
@@ -36,9 +40,17 @@ import {
   type ContentListItem,
 } from '@/features/parse/linkSegments'
 import {
+  addLayoutBox,
+  deleteLayoutBox,
+  EDITABLE_TYPES,
+  setLayoutBoxBBox,
+  setLayoutBoxType,
+} from '@/features/parse/layoutEditOps'
+import {
   bboxToPercent,
   colorForType,
   getPageSize,
+  type BBox,
   type LayoutBox,
   type MiddleJson,
 } from '@/features/parse/middleTypes'
@@ -55,6 +67,18 @@ function PreviewToolbar({
   onBack,
   title = '原文件',
   boxCount,
+  editMode,
+  onToggleEdit,
+  drawMode,
+  onToggleDraw,
+  selectedBoxId,
+  selectedType,
+  drawType = 'text',
+  onChangeType,
+  onDeleteSelected,
+  onSaveEdit,
+  onCancelEdit,
+  saving,
 }: {
   currentPage: number
   pageCount: number
@@ -63,87 +87,251 @@ function PreviewToolbar({
   onBack: () => void
   title?: string
   boxCount?: number
+  editMode?: boolean
+  onToggleEdit?: () => void
+  drawMode?: boolean
+  onToggleDraw?: () => void
+  selectedBoxId?: string | null
+  selectedType?: string
+  drawType?: string
+  onChangeType?: (t: string) => void
+  onDeleteSelected?: () => void
+  onSaveEdit?: () => void
+  onCancelEdit?: () => void
+  saving?: boolean
 }) {
   const atStart = currentPage <= 1
   const atEnd = pageCount > 0 ? currentPage >= pageCount : true
 
   return (
-    <header className="relative grid shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-3">
-      <div className="flex min-w-0 items-center gap-3 justify-self-start">
-        <span className="shrink-0 text-[15px] font-semibold text-ink">{title}</span>
-        <button
-          type="button"
-          onClick={onBack}
-          className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[12px] font-semibold text-[#4f46e5] transition hover:bg-[#f3f4fb]"
-          title="继续上传"
-        >
-          <Upload size={14} />
-          上传
-        </button>
-        {typeof boxCount === 'number' && boxCount > 0 && (
-          <span className="rounded-md bg-[#eef0fb] px-2 py-0.5 text-[11px] font-semibold text-[#4f46e5]">
-            {boxCount} 个框
-          </span>
-        )}
-      </div>
-
-      <div className="justify-self-center">
-        {pageCount > 0 ? (
-          <div className="flex items-center gap-1.5 text-[14px] text-ink">
-            <button
-              type="button"
-              disabled={atStart}
-              onClick={onPrev}
-              className="rounded-md p-1 text-ink transition hover:bg-[#f3f4fb] disabled:cursor-default disabled:text-[#c5c9dc]"
-              aria-label="上一页"
-            >
-              <ChevronLeft size={18} />
-            </button>
-            <span className="min-w-[4.5rem] text-center tabular-nums">
-              {currentPage} / {pageCount}
+    <header className="relative flex shrink-0 flex-col gap-2 px-4 py-3">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3 justify-self-start">
+          <span className="shrink-0 text-[15px] font-semibold text-ink">{title}</span>
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[12px] font-semibold text-[#4f46e5] transition hover:bg-[#f3f4fb]"
+            title="继续上传"
+          >
+            <Upload size={14} />
+            上传
+          </button>
+          {typeof boxCount === 'number' && boxCount > 0 && (
+            <span className="rounded-md bg-[#eef0fb] px-2 py-0.5 text-[11px] font-semibold text-[#4f46e5]">
+              {boxCount} 个框
             </span>
+          )}
+        </div>
+
+        <div className="justify-self-center">
+          {pageCount > 0 ? (
+            <div className="flex items-center gap-1.5 text-[14px] text-ink">
+              <button
+                type="button"
+                disabled={atStart}
+                onClick={onPrev}
+                className="rounded-md p-1 text-ink transition hover:bg-[#f3f4fb] disabled:cursor-default disabled:text-[#c5c9dc]"
+                aria-label="上一页"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <span className="min-w-[4.5rem] text-center tabular-nums">
+                {currentPage} / {pageCount}
+              </span>
+              <button
+                type="button"
+                disabled={atEnd}
+                onClick={onNext}
+                className="rounded-md p-1 text-ink transition hover:bg-[#f3f4fb] disabled:cursor-default disabled:text-[#c5c9dc]"
+                aria-label="下一页"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="flex items-center justify-end gap-1.5 justify-self-end">
+          {onToggleEdit ? (
             <button
               type="button"
-              disabled={atEnd}
-              onClick={onNext}
-              className="rounded-md p-1 text-ink transition hover:bg-[#f3f4fb] disabled:cursor-default disabled:text-[#c5c9dc]"
-              aria-label="下一页"
+              onClick={onToggleEdit}
+              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[12px] font-semibold transition ${
+                editMode ? 'bg-[#4f46e5] text-white' : 'text-[#4f46e5] hover:bg-[#eef0fb]'
+              }`}
             >
-              <ChevronRight size={18} />
+              {editMode ? '编辑中' : '编辑框选'}
             </button>
-          </div>
-        ) : null}
+          ) : (
+            <span className="inline-flex text-[#c5c9dc]" title="预览布局">
+              <Columns2 size={17} />
+            </span>
+          )}
+        </div>
       </div>
 
-      <div className="justify-self-end">
-        <span className="inline-flex text-[#c5c9dc]" title="预览布局">
-          <Columns2 size={17} />
-        </span>
-      </div>
+      {editMode && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl bg-[#f3f4fb] px-3 py-2">
+          <button
+            type="button"
+            onClick={onToggleDraw}
+            className={`rounded-lg px-2.5 py-1 text-[12px] font-semibold transition ${
+              drawMode ? 'bg-[#4f46e5] text-white' : 'bg-white text-[#4f46e5]'
+            }`}
+          >
+            {drawMode ? '绘制中…拖拽松手' : '新画框'}
+          </button>
+          <label className="flex items-center gap-1.5 text-[12px] text-ink-soft">
+            类型
+            <select
+              value={selectedBoxId ? selectedType || 'text' : drawType || 'text'}
+              onChange={(e) => onChangeType?.(e.target.value)}
+              className="rounded-md border border-[#dfe3f5] bg-white px-2 py-1 text-[12px] font-semibold text-ink"
+            >
+              {EDITABLE_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </label>
+          {!selectedBoxId && drawType === 'image_body' ? (
+            <span className="text-[11px] text-[#6a70a0]">新画 image_body 会裁切 PDF 同步到右侧</span>
+          ) : null}
+          <button
+            type="button"
+            disabled={!selectedBoxId}
+            onClick={onDeleteSelected}
+            className="rounded-lg bg-white px-2.5 py-1 text-[12px] font-semibold text-[#dc2626] transition hover:bg-[#fef2f2] disabled:opacity-40"
+          >
+            删除选中
+          </button>
+          <span className="flex-1" />
+          <button
+            type="button"
+            disabled={saving}
+            onClick={onCancelEdit}
+            className="rounded-lg px-2.5 py-1 text-[12px] font-semibold text-[#6a70a0] hover:bg-white"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={onSaveEdit}
+            className="inline-flex items-center gap-1 rounded-lg bg-[#4f46e5] px-3 py-1 text-[12px] font-semibold text-white disabled:opacity-60"
+          >
+            {saving ? <Loader2 size={13} className="animate-spin" /> : null}
+            保存
+          </button>
+        </div>
+      )}
     </header>
   )
+}
+
+type OverlayHandlers = {
+  onHover: (id: string | null) => void
+  editMode?: boolean
+  selectedBoxId?: string | null
+  drawMode?: boolean
+  onSelectBox?: (id: string | null) => void
+  onBoxBBoxCommit?: (id: string, bbox: BBox) => void
+  onDrawComplete?: (pageIndex: number, bbox: BBox) => void
 }
 
 function paintOverlays(
   pageEls: HTMLElement[],
   boxes: LayoutBox[],
   middle: MiddleJson | null,
-  onHover: (id: string | null) => void,
+  handlers: OverlayHandlers,
 ) {
+  const {
+    onHover,
+    editMode = false,
+    selectedBoxId = null,
+    drawMode = false,
+    onSelectBox,
+    onBoxBBoxCommit,
+    onDrawComplete,
+  } = handlers
+
   for (const wrap of pageEls) {
     const pageNum = Number(wrap.dataset.page || 1)
     const pageIndex = pageNum - 1
     const layer = wrap.querySelector<HTMLElement>('[data-overlay-layer]')
-    if (!layer) continue
+    const frame = wrap.querySelector<HTMLElement>('[data-page-frame]')
+    if (!layer || !frame) continue
 
     layer.innerHTML = ''
     const pageSize = getPageSize(middle, pageIndex)
     if (!pageSize) continue
 
+    // Draw-new-box rubber band on this page
+    if (editMode && drawMode && onDrawComplete) {
+      layer.style.cursor = 'crosshair'
+      let start: { x: number; y: number } | null = null
+      let rubber: HTMLDivElement | null = null
+
+      const toPdf = (clientX: number, clientY: number): [number, number] => {
+        const r = frame.getBoundingClientRect()
+        const x = ((clientX - r.left) / r.width) * pageSize[0]
+        const y = ((clientY - r.top) / r.height) * pageSize[1]
+        return [x, y]
+      }
+
+      layer.onmousedown = (ev) => {
+        if (ev.button !== 0) return
+        ev.preventDefault()
+        ev.stopPropagation()
+        start = { x: ev.clientX, y: ev.clientY }
+        rubber = document.createElement('div')
+        rubber.className = 'pointer-events-none absolute border-2 border-dashed border-[#4f46e5] bg-[#4f46e5]/15'
+        layer.appendChild(rubber)
+      }
+      layer.onmousemove = (ev) => {
+        if (!start || !rubber) return
+        const r = frame.getBoundingClientRect()
+        const x0 = Math.min(start.x, ev.clientX) - r.left
+        const y0 = Math.min(start.y, ev.clientY) - r.top
+        const w = Math.abs(ev.clientX - start.x)
+        const h = Math.abs(ev.clientY - start.y)
+        rubber.style.left = `${(x0 / r.width) * 100}%`
+        rubber.style.top = `${(y0 / r.height) * 100}%`
+        rubber.style.width = `${(w / r.width) * 100}%`
+        rubber.style.height = `${(h / r.height) * 100}%`
+      }
+      layer.onmouseup = (ev) => {
+        if (!start) return
+        const [x0, y0] = toPdf(start.x, start.y)
+        const [x1, y1] = toPdf(ev.clientX, ev.clientY)
+        start = null
+        rubber?.remove()
+        rubber = null
+        const bbox: BBox = [
+          Math.min(x0, x1),
+          Math.min(y0, y1),
+          Math.max(x0, x1),
+          Math.max(y0, y1),
+        ]
+        if (Math.abs(bbox[2] - bbox[0]) < 8 || Math.abs(bbox[3] - bbox[1]) < 8) return
+        onDrawComplete(pageIndex, bbox)
+      }
+    } else {
+      layer.onmousedown = null
+      layer.onmousemove = null
+      layer.onmouseup = null
+      layer.style.cursor = ''
+    }
+
+    if (drawMode) continue // only rubber-band while drawing
+
     const pageBoxes = boxes.filter((b) => b.pageIndex === pageIndex)
     for (const box of pageBoxes) {
       const pct = bboxToPercent(box.bbox, pageSize)
       const color = colorForType(box.type)
+      const selected = editMode && selectedBoxId === box.id
 
       const el = document.createElement('button')
       el.type = 'button'
@@ -157,12 +345,12 @@ function paintOverlays(
       el.style.top = pct.top
       el.style.width = pct.width
       el.style.height = pct.height
-      el.style.border = `1.5px solid ${color}`
-      el.style.background = `${color}14`
-      el.style.boxShadow = 'none'
-      el.style.cursor = 'pointer'
+      el.style.border = selected ? `2.5px solid ${color}` : `1.5px solid ${color}`
+      el.style.background = selected ? `${color}33` : `${color}14`
+      el.style.boxShadow = selected ? `0 0 0 2px ${color}` : 'none'
+      el.style.cursor = editMode ? 'pointer' : 'pointer'
       el.style.overflow = 'visible'
-      el.style.zIndex = '1'
+      el.style.zIndex = selected ? '8' : '1'
 
       const label = document.createElement('span')
       label.dataset.boxLabel = '1'
@@ -170,11 +358,83 @@ function paintOverlays(
       label.className =
         'pointer-events-none absolute left-0 top-0 z-10 max-w-full truncate rounded-br px-1.5 py-0.5 text-[10px] font-bold leading-none text-white shadow-sm'
       label.style.backgroundColor = color
-      label.style.opacity = '0'
+      label.style.opacity = editMode || selected ? '1' : '0'
       label.style.transition = 'opacity 120ms ease'
 
-      el.addEventListener('mouseenter', () => onHover(box.id))
-      el.addEventListener('mouseleave', () => onHover(null))
+      if (editMode) {
+        el.addEventListener('click', (ev) => {
+          ev.preventDefault()
+          ev.stopPropagation()
+          onSelectBox?.(box.id)
+        })
+        // Move whole box by dragging body
+        el.addEventListener('mousedown', (ev) => {
+          if (ev.button !== 0 || (ev.target as HTMLElement).dataset.handle) return
+          if (selectedBoxId !== box.id) return
+          ev.preventDefault()
+          ev.stopPropagation()
+          const startX = ev.clientX
+          const startY = ev.clientY
+          const [bx0, by0, bx1, by1] = box.bbox
+          const r = frame.getBoundingClientRect()
+          const onMove = (e: MouseEvent) => {
+            const dx = ((e.clientX - startX) / r.width) * pageSize[0]
+            const dy = ((e.clientY - startY) / r.height) * pageSize[1]
+            const nb: BBox = [bx0 + dx, by0 + dy, bx1 + dx, by1 + dy]
+            const p = bboxToPercent(nb, pageSize)
+            el.style.left = p.left
+            el.style.top = p.top
+            el.style.width = p.width
+            el.style.height = p.height
+            ;(el as HTMLButtonElement & { _draftBBox?: BBox })._draftBBox = nb
+          }
+          const onUp = () => {
+            window.removeEventListener('mousemove', onMove)
+            window.removeEventListener('mouseup', onUp)
+            const draft = (el as HTMLButtonElement & { _draftBBox?: BBox })._draftBBox
+            if (draft) onBoxBBoxCommit?.(box.id, draft)
+          }
+          window.addEventListener('mousemove', onMove)
+          window.addEventListener('mouseup', onUp)
+        })
+      } else {
+        el.addEventListener('mouseenter', () => onHover(box.id))
+        el.addEventListener('mouseleave', () => onHover(null))
+      }
+
+      if (selected && onBoxBBoxCommit) {
+        const handle = document.createElement('span')
+        handle.dataset.handle = 'se'
+        handle.className = 'absolute bottom-0 right-0 z-20 h-3 w-3 translate-x-1/2 translate-y-1/2 rounded-sm bg-white'
+        handle.style.border = `2px solid ${color}`
+        handle.style.cursor = 'nwse-resize'
+        handle.addEventListener('mousedown', (ev) => {
+          ev.preventDefault()
+          ev.stopPropagation()
+          const startX = ev.clientX
+          const startY = ev.clientY
+          const [bx0, by0, bx1, by1] = box.bbox
+          const r = frame.getBoundingClientRect()
+          const onMove = (e: MouseEvent) => {
+            const dx = ((e.clientX - startX) / r.width) * pageSize[0]
+            const dy = ((e.clientY - startY) / r.height) * pageSize[1]
+            const nb: BBox = [bx0, by0, Math.max(bx0 + 8, bx1 + dx), Math.max(by0 + 8, by1 + dy)]
+            const p = bboxToPercent(nb, pageSize)
+            el.style.width = p.width
+            el.style.height = p.height
+            ;(el as HTMLButtonElement & { _draftBBox?: BBox })._draftBBox = nb
+          }
+          const onUp = () => {
+            window.removeEventListener('mousemove', onMove)
+            window.removeEventListener('mouseup', onUp)
+            const draft = (el as HTMLButtonElement & { _draftBBox?: BBox })._draftBBox
+            if (draft) onBoxBBoxCommit(box.id, draft)
+          }
+          window.addEventListener('mousemove', onMove)
+          window.addEventListener('mouseup', onUp)
+        })
+        el.appendChild(handle)
+      }
 
       el.appendChild(label)
       layer.appendChild(el)
@@ -220,6 +480,12 @@ function PdfPages({
   hoverBoxId,
   hoverSegId,
   onHoverBox,
+  editMode = false,
+  selectedBoxId = null,
+  drawMode = false,
+  onSelectBox,
+  onBoxBBoxCommit,
+  onDrawComplete,
 }: {
   blob: Blob
   zoom: number
@@ -232,6 +498,12 @@ function PdfPages({
   hoverBoxId?: string | null
   hoverSegId?: string | null
   onHoverBox?: (id: string | null) => void
+  editMode?: boolean
+  selectedBoxId?: string | null
+  drawMode?: boolean
+  onSelectBox?: (id: string | null) => void
+  onBoxBBoxCommit?: (id: string, bbox: BBox) => void
+  onDrawComplete?: (pageIndex: number, bbox: BBox) => void
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const [error, setError] = useState<string | null>(null)
@@ -243,6 +515,44 @@ function PdfPages({
   layoutBoxesRef.current = layoutBoxes
   const middleRef = useRef(middle ?? null)
   middleRef.current = middle ?? null
+  const editRef = useRef({
+    editMode,
+    selectedBoxId,
+    drawMode,
+    onSelectBox,
+    onBoxBBoxCommit,
+    onDrawComplete,
+  })
+  editRef.current = {
+    editMode,
+    selectedBoxId,
+    drawMode,
+    onSelectBox,
+    onBoxBBoxCommit,
+    onDrawComplete,
+  }
+
+  const syncOverlays = useCallback(() => {
+    const boxes = layoutBoxesRef.current ?? []
+    const ed = editRef.current
+    paintOverlays(pageElsRef.current, boxes, middleRef.current, {
+      onHover: (id) => hoverRef.current?.(id),
+      editMode: ed.editMode,
+      selectedBoxId: ed.selectedBoxId,
+      drawMode: ed.drawMode,
+      onSelectBox: ed.onSelectBox,
+      onBoxBBoxCommit: ed.onBoxBBoxCommit,
+      onDrawComplete: ed.onDrawComplete,
+    })
+    for (const wrap of pageElsRef.current) {
+      const layer = wrap.querySelector<HTMLElement>('[data-overlay-layer]')
+      if (!layer) continue
+      layer.style.pointerEvents = boxes.length || ed.editMode ? 'auto' : 'none'
+      for (const child of Array.from(layer.children)) {
+        ;(child as HTMLElement).style.pointerEvents = 'auto'
+      }
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -344,30 +654,21 @@ function PdfPages({
           pageElsRef.current.push(wrap)
         }
 
-        const syncOverlays = () => {
-          const boxes = layoutBoxesRef.current ?? []
-          paintOverlays(pageElsRef.current, boxes, middleRef.current, (id) => hoverRef.current?.(id))
-          for (const wrap of pageElsRef.current) {
-            const layer = wrap.querySelector<HTMLElement>('[data-overlay-layer]')
-            if (!layer) continue
-            layer.style.pointerEvents = boxes.length ? 'auto' : 'none'
-            for (const child of Array.from(layer.children)) {
-              ;(child as HTMLElement).style.pointerEvents = 'auto'
-            }
-          }
+        const paint = () => {
+          syncOverlays()
         }
 
         // First page ASAP, then the rest — avoids long full-doc lock
         await renderPage(1)
         if (!cancelled) {
           setLoading(false)
-          syncOverlays()
+          paint()
         }
 
         for (let i = 2; i <= doc.numPages; i++) {
           if (cancelled) break
           await renderPage(i)
-          if (!cancelled) syncOverlays()
+          if (!cancelled) paint()
         }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'PDF 预览失败')
@@ -382,28 +683,27 @@ function PdfPages({
       if (hostRef.current) hostRef.current.innerHTML = ''
       pageElsRef.current = []
     }
-  }, [blob, onPageCount, onCurrentPage])
+  }, [blob, onPageCount, onCurrentPage, syncOverlays])
 
-  // Paint / refresh layout boxes after pages exist / boxes change
+  // Paint / refresh layout boxes after pages exist / boxes change / edit state
   useEffect(() => {
     if (loading) return
-    const boxes = layoutBoxes ?? []
-    paintOverlays(pageElsRef.current, boxes, middle ?? null, (id) => hoverRef.current?.(id))
-    for (const wrap of pageElsRef.current) {
-      const layer = wrap.querySelector<HTMLElement>('[data-overlay-layer]')
-      if (!layer) continue
-      layer.style.pointerEvents = boxes.length ? 'auto' : 'none'
-      for (const child of Array.from(layer.children)) {
-        ;(child as HTMLElement).style.pointerEvents = 'auto'
-      }
-    }
-  }, [loading, layoutBoxes, middle])
+    syncOverlays()
+  }, [
+    loading,
+    layoutBoxes,
+    middle,
+    editMode,
+    selectedBoxId,
+    drawMode,
+    syncOverlays,
+  ])
 
-  // Hover highlight without rebuilding boxes
+  // Hover highlight without rebuilding boxes (view mode only)
   useEffect(() => {
-    if (loading) return
+    if (loading || editMode) return
     updateOverlayHighlight(pageElsRef.current, hoverBoxId ?? null, hoverSegId ?? null)
-  }, [loading, hoverBoxId, hoverSegId, layoutBoxes])
+  }, [loading, hoverBoxId, hoverSegId, layoutBoxes, editMode])
 
   // Scroll → update current page
   useEffect(() => {
@@ -472,6 +772,12 @@ function FilePreview({
   hoverBoxId,
   hoverSegId,
   onHoverBox,
+  editMode,
+  selectedBoxId,
+  drawMode,
+  onSelectBox,
+  onBoxBBoxCommit,
+  onDrawComplete,
 }: {
   item: UploadItem
   zoom: number
@@ -484,6 +790,12 @@ function FilePreview({
   hoverBoxId?: string | null
   hoverSegId?: string | null
   onHoverBox?: (id: string | null) => void
+  editMode?: boolean
+  selectedBoxId?: string | null
+  drawMode?: boolean
+  onSelectBox?: (id: string | null) => void
+  onBoxBBoxCommit?: (id: string, bbox: BBox) => void
+  onDrawComplete?: (pageIndex: number, bbox: BBox) => void
 }) {
   const [text, setText] = useState<string | null>(null)
   const [blob, setBlob] = useState<Blob | null>(null)
@@ -569,6 +881,12 @@ function FilePreview({
         hoverBoxId={hoverBoxId}
         hoverSegId={hoverSegId}
         onHoverBox={onHoverBox}
+        editMode={editMode}
+        selectedBoxId={selectedBoxId}
+        drawMode={drawMode}
+        onSelectBox={onSelectBox}
+        onBoxBBoxCommit={onBoxBBoxCommit}
+        onDrawComplete={onDrawComplete}
       />
     )
   }
@@ -617,6 +935,13 @@ export default function ParseWorkspace({ item }: { item: UploadItem }) {
   const [hoverSegId, setHoverSegId] = useState<string | null>(null)
   const [translating, setTranslating] = useState(false)
   const [linkingZh, setLinkingZh] = useState(false)
+  const [editMode, setEditMode] = useState(false)
+  const [drawMode, setDrawMode] = useState(false)
+  const [selectedBoxId, setSelectedBoxId] = useState<string | null>(null)
+  const [draftMiddle, setDraftMiddle] = useState<MiddleJson | null>(null)
+  const [draftContentList, setDraftContentList] = useState<ContentListItem[] | null>(null)
+  const [savingLayout, setSavingLayout] = useState(false)
+  const [drawType, setDrawType] = useState('text')
   /** Avoid re-fetching the same bound task after runParse / restore. */
   const boundShownRef = useRef<string | null>(null)
   const busy = busyId === item.upload_id || phase === 'running'
@@ -625,9 +950,12 @@ export default function ParseWorkspace({ item }: { item: UploadItem }) {
     (import.meta.env.VITE_MINERU_SERVER_URL as string | undefined)?.trim() ||
     'http://127.0.0.1:30000'
 
+  const activeMiddle = editMode && draftMiddle ? draftMiddle : middle
+  const activeContentList = editMode && draftContentList ? draftContentList : contentList
+
   const { segments: enSegments, boxes: layoutBoxes } = useMemo(
-    () => buildLinkedLayout(contentList, middle),
-    [contentList, middle],
+    () => buildLinkedLayout(activeContentList, activeMiddle),
+    [activeContentList, activeMiddle],
   )
 
   const zhSegments = useMemo(
@@ -635,13 +963,15 @@ export default function ParseWorkspace({ item }: { item: UploadItem }) {
     [contentListZh, middle, enSegments],
   )
 
-  const activeSegments = mdView === 'zh' ? zhSegments : enSegments
+  const activeSegments = editMode ? enSegments : mdView === 'zh' ? zhSegments : enSegments
 
   const boxById = useMemo(() => {
     const m = new Map<string, LayoutBox>()
     for (const b of layoutBoxes) m.set(b.id, b)
     return m
   }, [layoutBoxes])
+
+  const selectedBox = selectedBoxId ? boxById.get(selectedBoxId) : undefined
 
   const handlePageCount = useCallback((n: number | null) => {
     setPageCount(n ?? 0)
@@ -655,6 +985,7 @@ export default function ParseWorkspace({ item }: { item: UploadItem }) {
 
   const onHoverBox = useCallback(
     (id: string | null) => {
+      if (editMode) return
       if (!id) {
         clearHover()
         return
@@ -662,11 +993,12 @@ export default function ParseWorkspace({ item }: { item: UploadItem }) {
       setHoverBoxId(id)
       setHoverSegId(boxById.get(id)?.segmentId ?? null)
     },
-    [boxById, clearHover],
+    [boxById, clearHover, editMode],
   )
 
   const onHoverSegment = useCallback(
     (id: string | null) => {
+      if (editMode) return
       if (!id) {
         clearHover()
         return
@@ -674,8 +1006,121 @@ export default function ParseWorkspace({ item }: { item: UploadItem }) {
       setHoverSegId(id)
       setHoverBoxId(null)
     },
-    [clearHover],
+    [clearHover, editMode],
   )
+
+  const enterEditMode = useCallback(() => {
+    if (!middle || !contentList) {
+      setMsg('暂无版面数据可编辑')
+      return
+    }
+    setDraftMiddle(JSON.parse(JSON.stringify(middle)) as MiddleJson)
+    setDraftContentList(JSON.parse(JSON.stringify(contentList)) as ContentListItem[])
+    setEditMode(true)
+    setDrawMode(false)
+    setSelectedBoxId(null)
+    setMdView('en')
+    clearHover()
+    setMsg('编辑模式：点击选中框，可改类型、拖动、缩放或删除；也可新画框')
+  }, [middle, contentList, clearHover])
+
+  const cancelEditMode = useCallback(() => {
+    setEditMode(false)
+    setDrawMode(false)
+    setSelectedBoxId(null)
+    setDraftMiddle(null)
+    setDraftContentList(null)
+    setMsg(null)
+  }, [])
+
+  const applyDraft = useCallback(
+    (next: { middle: MiddleJson; contentList: ContentListItem[] }) => {
+      setDraftMiddle(next.middle)
+      setDraftContentList(next.contentList)
+    },
+    [],
+  )
+
+  const handleDeleteSelected = useCallback(() => {
+    if (!selectedBoxId || !draftMiddle || !draftContentList) return
+    const next = deleteLayoutBox(draftMiddle, draftContentList, selectedBoxId)
+    applyDraft(next)
+    setSelectedBoxId(null)
+    setMsg('已删除框选，右侧内容已同步更新（保存后写入文件）')
+  }, [selectedBoxId, draftMiddle, draftContentList, applyDraft])
+
+  const handleChangeType = useCallback(
+    (t: string) => {
+      if (!selectedBoxId || !draftMiddle || !draftContentList) return
+      const next = setLayoutBoxType(draftMiddle, draftContentList, selectedBoxId, t)
+      applyDraft(next)
+    },
+    [selectedBoxId, draftMiddle, draftContentList, applyDraft],
+  )
+
+  const handleBoxBBoxCommit = useCallback(
+    (id: string, bbox: BBox) => {
+      if (!draftMiddle || !draftContentList) return
+      applyDraft(setLayoutBoxBBox(draftMiddle, draftContentList, id, bbox))
+    },
+    [draftMiddle, draftContentList, applyDraft],
+  )
+
+  const handleDrawComplete = useCallback(
+    (pageIndex: number, bbox: BBox) => {
+      if (!draftMiddle || !draftContentList) return
+      void (async () => {
+        setDrawMode(false)
+        if (drawType === 'image_body' || drawType === 'image') {
+          if (!taskId) {
+            setMsg('缺少任务 ID，无法保存裁切图片')
+            return
+          }
+          setMsg('正在截取框选区域并同步到右侧…')
+          try {
+            const pdfBlob = await getCachedUploadBlob(item.upload_id)
+            const cropped = await cropPdfPageRegion(pdfBlob, pageIndex, bbox)
+            const uploaded = await uploadTaskImage(taskId, cropped, 'crop.png')
+            const next = addLayoutBox(draftMiddle, draftContentList, pageIndex, bbox, 'image_body', {
+              imgPath: uploaded.img_path,
+            })
+            applyDraft(next)
+            setMsg('已添加图片框，右侧已显示裁切图（记得保存）')
+          } catch (e) {
+            setMsg(e instanceof Error ? e.message : '截取图片失败')
+          }
+          return
+        }
+        const next = addLayoutBox(draftMiddle, draftContentList, pageIndex, bbox, drawType, '')
+        applyDraft(next)
+        setMsg(
+          drawType.includes('caption')
+            ? '已添加文字框（误标 caption 建议直接删除原框）'
+            : '已添加新框（无 OCR 文字时可稍后重译或手改 MD）',
+        )
+      })()
+    },
+    [draftMiddle, draftContentList, drawType, applyDraft, taskId, item.upload_id],
+  )
+
+  // Delete key in edit mode
+  useEffect(() => {
+    if (!editMode) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        const tag = (e.target as HTMLElement)?.tagName
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+        e.preventDefault()
+        handleDeleteSelected()
+      }
+      if (e.key === 'Escape') {
+        if (drawMode) setDrawMode(false)
+        else setSelectedBoxId(null)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [editMode, drawMode, handleDeleteSelected])
 
   const applyArtifacts = useCallback(async (id: string) => {
     const {
@@ -715,6 +1160,31 @@ export default function ParseWorkspace({ item }: { item: UploadItem }) {
       }
     }
   }, [])
+
+  const handleSaveLayout = useCallback(async () => {
+    if (!taskId || !draftMiddle || !draftContentList) return
+    setSavingLayout(true)
+    setMsg('正在保存版面修正…')
+    try {
+      const res = await saveTaskLayout(taskId, draftMiddle, draftContentList)
+      setEditMode(false)
+      setDrawMode(false)
+      setSelectedBoxId(null)
+      setDraftMiddle(null)
+      setDraftContentList(null)
+      boundShownRef.current = null
+      await applyArtifacts(taskId)
+      setMsg(
+        res.zh_stale
+          ? '版面已保存并刷新 Markdown。译文已过期，请重新翻译以更新联动。'
+          : '版面已保存，右侧 Markdown 已更新',
+      )
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : '保存失败')
+    } finally {
+      setSavingLayout(false)
+    }
+  }, [taskId, draftMiddle, draftContentList, applyArtifacts])
 
   const handleMdViewChange = useCallback(
     async (view: 'en' | 'zh') => {
@@ -877,6 +1347,18 @@ export default function ParseWorkspace({ item }: { item: UploadItem }) {
       })
       const done = await pollTask(id, { intervalMs: 2000 })
       if (done.status === 'failed') {
+        // MD may already exist if only post-steps (e.g. PDF) failed
+        try {
+          const zh = await fetchArtifactText(id, 'zh_markdown')
+          if (zh?.trim()) {
+            await applyArtifacts(id)
+            setMdView('zh')
+            setMsg(`译文已生成，但有步骤失败：${done.error || '未知错误'}（可稍后重试导出）`)
+            return
+          }
+        } catch {
+          /* fall through */
+        }
         throw new Error(done.error || '翻译失败')
       }
       await applyArtifacts(id)
@@ -897,13 +1379,35 @@ export default function ParseWorkspace({ item }: { item: UploadItem }) {
     >
       <section className="flex min-h-0 w-[52%] flex-col bg-white">
         <PreviewToolbar
-          title={phase === 'result' ? '版面框选' : '原文件'}
+          title={phase === 'result' ? (editMode ? '框选编辑' : '版面框选') : '原文件'}
           currentPage={currentPage}
           pageCount={pageCount}
           boxCount={phase === 'result' ? layoutBoxes.length : undefined}
           onPrev={() => goToPageRef.current?.(Math.max(1, currentPage - 1))}
           onNext={() => goToPageRef.current?.(Math.min(pageCount || 1, currentPage + 1))}
           onBack={() => setSelectedId(null)}
+          editMode={editMode}
+          onToggleEdit={
+            phase === 'result'
+              ? () => {
+                  if (editMode) cancelEditMode()
+                  else enterEditMode()
+                }
+              : undefined
+          }
+          drawMode={drawMode}
+          onToggleDraw={() => setDrawMode((v) => !v)}
+          selectedBoxId={selectedBoxId}
+          selectedType={selectedBox?.type || drawType}
+          drawType={drawType}
+          onChangeType={(t) => {
+            if (selectedBoxId) handleChangeType(t)
+            else setDrawType(t)
+          }}
+          onDeleteSelected={handleDeleteSelected}
+          onSaveEdit={() => void handleSaveLayout()}
+          onCancelEdit={cancelEditMode}
+          saving={savingLayout}
         />
         <div ref={scrollRef} className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto bg-white">
           <FilePreview
@@ -914,10 +1418,16 @@ export default function ParseWorkspace({ item }: { item: UploadItem }) {
             onCurrentPage={setCurrentPage}
             goToPageRef={goToPageRef}
             layoutBoxes={phase === 'result' ? layoutBoxes : undefined}
-            middle={phase === 'result' ? middle : null}
-            hoverBoxId={phase === 'result' ? hoverBoxId : null}
-            hoverSegId={phase === 'result' ? hoverSegId : null}
+            middle={phase === 'result' ? activeMiddle : null}
+            hoverBoxId={phase === 'result' && !editMode ? hoverBoxId : null}
+            hoverSegId={phase === 'result' && !editMode ? hoverSegId : null}
             onHoverBox={onHoverBox}
+            editMode={editMode}
+            selectedBoxId={selectedBoxId}
+            drawMode={drawMode}
+            onSelectBox={setSelectedBoxId}
+            onBoxBBoxCommit={handleBoxBBoxCommit}
+            onDrawComplete={handleDrawComplete}
           />
         </div>
       </section>

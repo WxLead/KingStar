@@ -75,7 +75,7 @@ function UploadPanel() {
 
         <motion.div
           variants={rise}
-          className="mt-6 rounded-2xl border-2 border-dashed border-[#c9cbe8] bg-white/70 px-10 pb-5 pt-7 transition-colors hover:border-[#a5a8e0] hover:bg-white"
+          className="mt-6 rounded-2xl border-2 border-dashed border-[#c9cbe8] bg-white/70 px-10 py-14 transition-colors hover:border-[#a5a8e0] hover:bg-white"
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             e.preventDefault()

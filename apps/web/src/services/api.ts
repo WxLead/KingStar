@@ -205,6 +205,38 @@ export async function loadParseArtifacts(taskId: string): Promise<{
   return { markdown, middle, contentList, contentListZh, zhMarkdown }
 }
 
+/** Persist Plan A layout edits; rebuilds document.md server-side. */
+export async function saveTaskLayout(
+  taskId: string,
+  middle: unknown,
+  contentList: unknown[],
+): Promise<{ ok: boolean; task_id: string; zh_stale?: boolean }> {
+  return request(`/tasks/${taskId}/layout`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ middle, content_list: contentList }),
+  })
+}
+
+/** Upload a cropped figure into the task's images/ folder (for image_body edits). */
+export async function uploadTaskImage(
+  taskId: string,
+  blob: Blob,
+  filename = 'crop.png',
+): Promise<{ filename: string; img_path: string; url: string }> {
+  const form = new FormData()
+  form.append('file', blob, filename)
+  const res = await fetch(`${API_BASE}/tasks/${encodeURIComponent(taskId)}/images`, {
+    method: 'POST',
+    body: form,
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(text || `上传图片失败 (${res.status})`)
+  }
+  return res.json() as Promise<{ filename: string; img_path: string; url: string }>
+}
+
 /** Ensure content_list_zh.json exists (backfill via /link-zh if needed). */
 export async function ensureLinkZh(taskId: string): Promise<void> {
   try {

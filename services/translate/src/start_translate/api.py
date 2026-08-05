@@ -37,7 +37,12 @@ def export_pdf(
     doc_stem: str | None = None,
 ) -> Path:
     """Export Chinese Markdown to PDF (no kept HTML)."""
-    from start_translate.export_pdf import main as export_main
+    import importlib
+
+    # Use importlib so we don't bind start_translate.export_pdf to the submodule
+    # (which would shadow this function on `from start_translate import export_pdf`).
+    export_mod = importlib.import_module("start_translate.export_pdf")
+    export_main = export_mod.main
 
     md = Path(zh_md)
     pdf = Path(pdf_path)
@@ -60,7 +65,10 @@ def beautify_and_export(
     limit_chunks: int = 0,
 ) -> tuple[Path, Path]:
     """AI-beautify HTML and export PDF from Chinese Markdown."""
-    from start_translate.export_pdf import main as export_main
+    import importlib
+
+    export_mod = importlib.import_module("start_translate.export_pdf")
+    export_main = export_mod.main
 
     md = Path(zh_md)
     pdf = Path(pdf_path)

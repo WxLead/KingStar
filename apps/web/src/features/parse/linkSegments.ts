@@ -1,4 +1,4 @@
-/** Link content_list (MD segments) ↔ middle.json layout boxes (1 segment : N boxes). */
+/** Link content_list (MD segments) ↔ middle.json layout boxes. */
 
 import {
   bboxIou,
@@ -31,7 +31,7 @@ export type LinkSegment = {
   type: string
   markdown: string
   color: string
-  /** All layout boxes belonging to this markdown chunk (e.g. image+caption, or two column fragments). */
+  /** Layout boxes for this markdown chunk (body / caption / text fragments). */
   boxIds: string[]
 }
 
@@ -110,12 +110,13 @@ function segmentPlainText(item: ContentListItem): string {
   return item.text || ''
 }
 
-function matchVisualGroup(
+/** Best-matching visual parent group (image/table/chart children) on a page. */
+function matchVisualGroupBoxes(
   boxes: LayoutBox[],
   pageIndex: number,
   parentType: string,
   clBbox: BBox | null,
-): string[] {
+): LayoutBox[] {
   const groups = new Map<number, LayoutBox[]>()
   for (const b of boxes) {
     if (b.pageIndex !== pageIndex) continue
@@ -141,10 +142,9 @@ function matchVisualGroup(
   }
   if (bestParent == null) return []
   if (clBbox && bestScore < 0.05) {
-    // Weak geometry — still take best group if unique on page
     if (groups.size > 1 && bestScore <= 0) return []
   }
-  return (groups.get(bestParent) || []).map((b) => b.id)
+  return groups.get(bestParent) || []
 }
 
 function matchTextBoxes(
@@ -169,7 +169,6 @@ function matchTextBoxes(
     }
   }
 
-  // Always attach best IoU box (primary fragment) so single-column still links
   if (clBbox) {
     let bestId: string | null = null
     let best = 0.12
@@ -187,8 +186,129 @@ function matchTextBoxes(
 }
 
 /**
+ * Split one MinerU image/table content_list item into separate hover segments
+ * so body ↔ caption highlight independently.
+ */
+function expandVisualSegments(
+  item: ContentListItem,
+  itemIndex: number,
+  boxes: LayoutBox[],
+  pageIndex: number,
+  clBbox: BBox | null,
+): LinkSegment[] {
+  const parentType = item.type || 'image'
+  const group = matchVisualGroupBoxes(boxes, pageIndex, parentType, clBbox)
+  const used = new Set<string>()
+  const out: LinkSegment[] = []
+
+  const takeBox = (pred: (b: LayoutBox) => boolean, textHint?: string): string[] => {
+    const candidates = group.filter((b) => !used.has(b.id) && pred(b))
+    if (textHint?.trim()) {
+      const n = normalizeText(textHint)
+      const hit = candidates.find((b) => {
+        const bt = normalizeText(b.text || '')
+        if (!bt || !n) return false
+        return bt === n || bt.includes(n) || n.includes(bt)
+      })
+      if (hit) {
+        used.add(hit.id)
+        return [hit.id]
+      }
+    }
+    if (candidates[0]) {
+      used.add(candidates[0].id)
+      return [candidates[0].id]
+    }
+    return []
+  }
+
+  const push = (suffix: string, type: string, markdown: string, boxIds: string[]) => {
+    out.push({
+      id: `seg-${itemIndex}-${suffix}`,
+      pageIndex,
+      type,
+      markdown,
+      color: colorForType(type),
+      boxIds,
+    })
+  }
+
+  if (parentType === 'image' || parentType === 'chart') {
+    const path = (item.img_path || '').replace(/\\/g, '/').trim()
+    if (path) {
+      const rel = path.includes('/') ? path.replace(/^\.\//, '') : `images/${path}`
+      const boxIds = takeBox((b) => /body/i.test(b.type) || b.type === parentType)
+      push('body', `${parentType}_body`, `![](${rel})`, boxIds)
+    }
+    ;(item.image_caption || []).forEach((c, ci) => {
+      if (!c.trim()) return
+      push(
+        `cap-${ci}`,
+        'image_caption',
+        c.trim(),
+        takeBox((b) => /caption/i.test(b.type), c),
+      )
+    })
+    ;(item.image_footnote || []).forEach((c, fi) => {
+      if (!c.trim()) return
+      push(
+        `fn-${fi}`,
+        'image_footnote',
+        c.trim(),
+        takeBox((b) => /footnote/i.test(b.type), c),
+      )
+    })
+    return out
+  }
+
+  if (parentType === 'table') {
+    ;(item.table_caption || []).forEach((c, ci) => {
+      if (!c.trim()) return
+      push(
+        `cap-${ci}`,
+        'table_caption',
+        c.trim(),
+        takeBox((b) => /caption/i.test(b.type), c),
+      )
+    })
+    const body = (item.table_body || '').trim()
+    if (body) {
+      push(
+        'body',
+        'table_body',
+        body,
+        takeBox((b) => /body/i.test(b.type) || b.type === 'table'),
+      )
+    } else if (!(item.table_caption?.length || item.table_footnote?.length)) {
+      push(
+        'body',
+        'table_body',
+        '*(表格)*',
+        takeBox((b) => /body/i.test(b.type) || b.type === 'table'),
+      )
+    }
+    ;(item.table_footnote || []).forEach((c, fi) => {
+      if (!c.trim()) return
+      push(
+        `fn-${fi}`,
+        'table_footnote',
+        c.trim(),
+        takeBox((b) => /footnote/i.test(b.type), c),
+      )
+    })
+    return out
+  }
+
+  const md = contentItemToMarkdown(item)
+  if (md) {
+    push('all', parentType, md, group.map((b) => b.id))
+  }
+  return out
+}
+
+/**
  * Build MD segments from content_list and layout boxes from middle.json,
- * then link 1 segment → N boxes (image+caption, cross-column fragments, …).
+ * then link segments → boxes. Image/table body and captions are separate segments.
  */
 export function buildLinkedLayout(
   contentList: ContentListItem[] | null | undefined,
@@ -202,24 +322,31 @@ export function buildLinkedLayout(
   const segments: LinkSegment[] = []
 
   contentList.forEach((item, i) => {
-    const markdown = contentItemToMarkdown(item)
-    if (markdown == null) return
-
     const pageIndex = typeof item.page_idx === 'number' ? item.page_idx : 0
     const pageSize = getPageSize(middle, pageIndex) ?? [612, 792]
     const clBbox =
       Array.isArray(item.bbox) && item.bbox.length === 4
         ? contentListBBoxToPdf(item.bbox as BBox, pageSize)
         : null
+
+    if (item.type === 'image' || item.type === 'table' || item.type === 'chart') {
+      const parts = expandVisualSegments(item, i, boxes, pageIndex, clBbox)
+      for (const seg of parts) {
+        for (const id of seg.boxIds) {
+          const box = boxes.find((b) => b.id === id)
+          if (box && !box.segmentId) box.segmentId = seg.id
+        }
+        segments.push(seg)
+      }
+      return
+    }
+
+    const markdown = contentItemToMarkdown(item)
+    if (markdown == null) return
+
     const type = displayType(item)
     const segId = `seg-${i}`
-
-    let boxIds: string[] = []
-    if (item.type === 'image' || item.type === 'table' || item.type === 'chart') {
-      boxIds = matchVisualGroup(boxes, pageIndex, item.type, clBbox)
-    } else {
-      boxIds = matchTextBoxes(boxes, pageIndex, segmentPlainText(item), clBbox)
-    }
+    const boxIds = matchTextBoxes(boxes, pageIndex, segmentPlainText(item), clBbox)
 
     for (const id of boxIds) {
       const box = boxes.find((b) => b.id === id)

@@ -7,7 +7,7 @@
 - Optional: GPU + MinerU models for real parse
 - DeepSeek API key for translation (`.env` under `services/translate` or `services/api`)
 
-日常三端启动命令已整理在仓库根目录 [README.md](../README.md#三端启动本地开发)。下文为补充说明。
+日常优先用仓库根目录一键启动：`.\scripts\dev-up.ps1`（说明见 [README.md](../README.md#一键启动推荐)）。分终端命令与下文补充说明仍可用。
 
 ## 1. Web
 

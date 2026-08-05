@@ -8,6 +8,7 @@ import { Check, ChevronDown, Copy, Download, FileText, Languages, Loader2 } from
 import 'katex/dist/katex.min.css'
 import type { LinkSegment } from '@/features/parse/linkSegments'
 import { rewriteMarkdownImageSrc } from '@/features/parse/markdownImages'
+import { prepareMarkdown } from '@/features/parse/markdownMath'
 import { exportTaskPdf } from '@/services/api'
 import {
   DropdownMenu,
@@ -18,12 +19,6 @@ import {
 
 export type MdLangView = 'en' | 'zh'
 
-function prepareMarkdown(src: string): string {
-  // MinerU often emits HTML tables; keep them intact for rehype-raw.
-  // Also normalize escaped dollars so remark-math / KaTeX can pick them up.
-  return src.replace(/\\\$/g, '$').replace(/\$\$\s*\n\s*\$\$/g, '$$$$')
-}
-
 function MarkdownBody({
   source,
   taskId,
@@ -31,6 +26,7 @@ function MarkdownBody({
   source: string
   taskId?: string | null
 }) {
+  const prepared = useMemo(() => prepareMarkdown(source), [source])
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm, remarkMath]}
@@ -55,7 +51,7 @@ function MarkdownBody({
         ),
       }}
     >
-      {prepareMarkdown(source)}
+      {prepared}
     </ReactMarkdown>
   )
 }

@@ -13,9 +13,63 @@ docker/               Compose
 docs/                 架构与本地开发说明
 ```
 
-## 三端启动（本地开发）
+## 一键启动（推荐）
 
-需要 **三个终端** 同时跑：MinerU 引擎 → BFF → Web。首次安装依赖后，日常只需执行「启动」命令。
+在仓库根目录执行，支持 **窗口** / **后台** 两种模式：
+
+```powershell
+cd D:\desktop\StarT
+
+# 窗口模式（默认）：每个服务单独弹一个终端，方便看日志
+.\scripts\dev-up.ps1
+
+# 后台模式：不弹终端，日志写到 scripts/.logs/
+.\scripts\dev-up.ps1 -Background
+```
+
+快捷方式：
+
+| 文件 | 效果 |
+|------|------|
+| `scripts\dev-up.cmd` | 窗口模式 |
+| `scripts\dev-up-bg.cmd` | 后台模式 |
+
+| 服务 | 地址 |
+|------|------|
+| Web | http://127.0.0.1:3000 |
+| BFF 健康检查 | http://127.0.0.1:8080/api/v1/health |
+| MinerU 文档 | http://127.0.0.1:8000/docs |
+
+停止（两种模式通用，按端口 + 记录的进程收尾）：
+
+```powershell
+.\scripts\dev-down.ps1
+```
+
+常用参数：
+
+```powershell
+# MinerU 已在跑，只起 BFF + Web
+.\scripts\dev-up.ps1 -SkipMinerU
+.\scripts\dev-up.ps1 -Background -SkipMinerU
+
+# MinerU 不在默认路径时
+.\scripts\dev-up.ps1 -MinerUHome "D:\path\to\MinerU"
+# 或先设环境变量：$env:MINERU_HOME = "D:\path\to\MinerU"
+
+# 后台时看日志
+Get-Content .\scripts\.logs\bff.log -Wait
+Get-Content .\scripts\.logs\web.log -Wait
+Get-Content .\scripts\.logs\mineru.log -Wait
+```
+
+> 首次仍需按下方完成依赖安装（api venv、`npm install`、MinerU 环境）。一键脚本只负责日常启动。
+
+---
+
+## 三端启动（本地开发 · 分终端）
+
+需要 **三个终端** 同时跑：MinerU 引擎 → BFF → Web。首次安装依赖后，日常更推荐用上面的 **一键启动**。
 
 | 服务 | 端口 | 说明 |
 |------|------|------|
