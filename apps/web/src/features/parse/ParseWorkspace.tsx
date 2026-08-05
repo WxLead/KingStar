@@ -935,6 +935,10 @@ export default function ParseWorkspace({ item }: { item: UploadItem }) {
   const [hoverSegId, setHoverSegId] = useState<string | null>(null)
   const [translating, setTranslating] = useState(false)
   const [linkingZh, setLinkingZh] = useState(false)
+  const [translateProgress, setTranslateProgress] = useState<{
+    ratio?: number
+    message?: string
+  } | null>(null)
   const [editMode, setEditMode] = useState(false)
   const [drawMode, setDrawMode] = useState(false)
   const [selectedBoxId, setSelectedBoxId] = useState<string | null>(null)
@@ -1338,6 +1342,7 @@ export default function ParseWorkspace({ item }: { item: UploadItem }) {
       return
     }
     setTranslating(true)
+    setTranslateProgress({ ratio: 0.02, message: '准备翻译…' })
     setMsg(null)
     try {
       const id = await translateOneClick(item.upload_id, {
@@ -1345,12 +1350,24 @@ export default function ParseWorkspace({ item }: { item: UploadItem }) {
         parse_backend: modeToBackend(config.mode),
         server_url: config.mode === 'remote' ? remoteServerUrl : null,
       })
-      const done = await pollTask(id, { intervalMs: 2000 })
+      const done = await pollTask(id, {
+        intervalMs: 1200,
+        onUpdate: (task) => {
+          const p = task.progress
+          if (p && typeof p.ratio === 'number') {
+            setTranslateProgress({
+              ratio: p.ratio,
+              message: p.message,
+            })
+          }
+        },
+      })
       if (done.status === 'failed') {
         // MD may already exist if only post-steps (e.g. PDF) failed
         try {
           const zh = await fetchArtifactText(id, 'zh_markdown')
           if (zh?.trim()) {
+            setTranslateProgress({ ratio: 1, message: '完成' })
             await applyArtifacts(id)
             setMdView('zh')
             setMsg(`译文已生成，但有步骤失败：${done.error || '未知错误'}（可稍后重试导出）`)
@@ -1361,6 +1378,7 @@ export default function ParseWorkspace({ item }: { item: UploadItem }) {
         }
         throw new Error(done.error || '翻译失败')
       }
+      setTranslateProgress({ ratio: 1, message: '完成' })
       await applyArtifacts(id)
       setMdView('zh')
       setMsg(null)
@@ -1368,6 +1386,7 @@ export default function ParseWorkspace({ item }: { item: UploadItem }) {
       setMsg(e instanceof Error ? e.message : '翻译失败')
     } finally {
       setTranslating(false)
+      setTranslateProgress(null)
     }
   }
 
@@ -1465,6 +1484,7 @@ export default function ParseWorkspace({ item }: { item: UploadItem }) {
                 onTranslate={() => void handleTranslate()}
                 translating={translating}
                 linkingZh={linkingZh}
+                translateProgress={translateProgress}
                 mdView={mdView}
                 onMdViewChange={(v) => void handleMdViewChange(v)}
               />

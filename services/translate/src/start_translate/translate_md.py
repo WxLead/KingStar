@@ -448,6 +448,7 @@ def translate_document(
     translator: Translator,
     concurrency: int = 3,
     progress: Callable[[str], None] | None = None,
+    on_progress: Callable[[int, int], None] | None = None,
 ) -> str:
     log = progress or (lambda _msg: None)
     units = build_translation_units(protected.text)
@@ -464,6 +465,9 @@ def translate_document(
 
     results: dict[int, str] = {}
     failed: dict[int, str] = {}
+    total = len(jobs)
+    if on_progress and total:
+        on_progress(0, total)
 
     def work(item: tuple[int, str, str]) -> tuple[int, str, Exception | None]:
         i, text, heading = item
@@ -472,21 +476,23 @@ def translate_document(
         except Exception as err:  # noqa: BLE001
             return i, text, err
 
-    log(f"Translating {len(jobs)} chunks (concurrency={concurrency})...")
+    log(f"Translating {total} chunks (concurrency={concurrency})...")
     done = 0
     with ThreadPoolExecutor(max_workers=max(1, concurrency)) as pool:
         futures = [pool.submit(work, job) for job in jobs]
         for fut in as_completed(futures):
             i, out, err = fut.result()
             done += 1
+            if on_progress and total:
+                on_progress(done, total)
             if err is not None:
                 failed[i] = str(err)
                 results[i] = units[i][0]  # keep English
-                log(f"[{done}/{len(jobs)}] chunk {i} FAILED, kept English: {err}")
+                log(f"[{done}/{total}] chunk {i} FAILED, kept English: {err}")
             else:
                 results[i] = out
-                if done % 10 == 0 or done == len(jobs):
-                    log(f"[{done}/{len(jobs)}] done")
+                if done % 10 == 0 or done == total:
+                    log(f"[{done}/{total}] done")
 
     out_parts: list[str] = []
     for idx, (text, do_tr) in enumerate(units):

@@ -9,6 +9,7 @@ import 'katex/dist/katex.min.css'
 import type { LinkSegment } from '@/features/parse/linkSegments'
 import { rewriteMarkdownImageSrc } from '@/features/parse/markdownImages'
 import { prepareMarkdown } from '@/features/parse/markdownMath'
+import BusyOverlay from '@/features/parse/BusyOverlay'
 import { exportTaskPdf } from '@/services/api'
 import {
   DropdownMenu,
@@ -94,6 +95,7 @@ export default function MarkdownPanel({
   onTranslate,
   translating,
   linkingZh,
+  translateProgress,
   mdView,
   onMdViewChange,
 }: {
@@ -108,6 +110,7 @@ export default function MarkdownPanel({
   translating?: boolean
   /** Backfilling content_list_zh for hover links */
   linkingZh?: boolean
+  translateProgress?: { ratio?: number; message?: string } | null
   mdView: MdLangView
   onMdViewChange: (view: MdLangView) => void
 }) {
@@ -245,81 +248,60 @@ export default function MarkdownPanel({
         <p className="px-5 pb-1 text-right text-[11px] text-[#b45309]">{exportMsg}</p>
       )}
 
-      <div ref={scrollRef} className="scrollbar-hidden relative min-h-0 flex-1 overflow-y-auto px-5 pb-4">
+      {/* Overlay lives OUTSIDE the scroller so it stays pinned while MD scrolls */}
+      <div className="relative min-h-0 flex-1">
+        <div
+          ref={scrollRef}
+          className={`scrollbar-hidden h-full overflow-y-auto px-5 pb-4 ${
+            busy ? 'overflow-hidden' : ''
+          }`}
+        >
+          {empty && !busy ? (
+            <p className="py-10 text-center text-[14px] text-[#9aa0b8]">暂无 Markdown</p>
+          ) : useSegments ? (
+            <div className="space-y-1 rounded-2xl bg-white p-3 text-[14px] leading-relaxed text-ink">
+              {segments.map((seg) => {
+                const active = hoverId === seg.id
+                return (
+                  <div
+                    key={seg.id}
+                    data-seg-id={seg.id}
+                    onMouseEnter={() => onHoverSegment(seg.id)}
+                    onMouseLeave={() => onHoverSegment(null)}
+                    className={`md-seg relative rounded-lg px-2 py-1.5 transition-colors ${
+                      active ? 'md-seg-hot' : ''
+                    }`}
+                    style={
+                      {
+                        ['--seg-color' as string]: seg.color,
+                      } as React.CSSProperties
+                    }
+                  >
+                    <article className="md-render">
+                      <MarkdownBody source={seg.markdown} taskId={taskId} />
+                    </article>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            !empty && (
+              <article className="md-render rounded-2xl bg-white p-5 text-[14px] leading-relaxed text-ink">
+                <MarkdownBody source={activeMarkdown} taskId={taskId} />
+              </article>
+            )
+          )}
+        </div>
+
         {translating && (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[#fafbfe]/88 backdrop-blur-[2px]">
-            <div className="relative flex h-14 w-14 items-center justify-center">
-              <span className="absolute inset-0 animate-ping rounded-full bg-[#4f46e5]/20" />
-              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-md">
-                <Loader2 size={22} className="animate-spin text-[#4f46e5]" />
-              </span>
-            </div>
-            <p className="text-[14px] font-semibold text-ink">正在翻译中…</p>
-            <p className="text-[12px] text-[#9aa0b8]">完成后将自动切换到译文</p>
-          </div>
+          <BusyOverlay
+            kind="translate"
+            progressRatio={translateProgress?.ratio}
+            progressMessage={translateProgress?.message}
+          />
         )}
-
-        {linkingZh && !translating && (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[#fafbfe]/88 backdrop-blur-[2px]">
-            <div className="relative flex h-14 w-14 items-center justify-center">
-              <span className="absolute inset-0 animate-ping rounded-full bg-[#4f46e5]/20" />
-              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-md">
-                <Loader2 size={22} className="animate-spin text-[#4f46e5]" />
-              </span>
-            </div>
-            <p className="text-[14px] font-semibold text-ink">正在生成译文联动…</p>
-            <p className="text-[12px] text-[#9aa0b8]">完成后可与左栏框选双向悬浮</p>
-          </div>
-        )}
-
-        {exportingPdf && (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[#fafbfe]/88 backdrop-blur-[2px]">
-            <div className="relative flex h-14 w-14 items-center justify-center">
-              <span className="absolute inset-0 animate-ping rounded-full bg-[#e23f2b]/15" />
-              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-md">
-                <Loader2 size={22} className="animate-spin text-[#e23f2b]" />
-              </span>
-            </div>
-            <p className="text-[14px] font-semibold text-ink">正在导出 PDF…</p>
-            <p className="text-[12px] text-[#9aa0b8]">使用 direct 导出，请稍候</p>
-          </div>
-        )}
-
-        {empty && !busy ? (
-          <p className="py-10 text-center text-[14px] text-[#9aa0b8]">暂无 Markdown</p>
-        ) : useSegments ? (
-          <div className="space-y-1 rounded-2xl bg-white p-3 text-[14px] leading-relaxed text-ink">
-            {segments.map((seg) => {
-              const active = hoverId === seg.id
-              return (
-                <div
-                  key={seg.id}
-                  data-seg-id={seg.id}
-                  onMouseEnter={() => onHoverSegment(seg.id)}
-                  onMouseLeave={() => onHoverSegment(null)}
-                  className={`md-seg relative rounded-lg px-2 py-1.5 transition-colors ${
-                    active ? 'md-seg-hot' : ''
-                  }`}
-                  style={
-                    {
-                      ['--seg-color' as string]: seg.color,
-                    } as React.CSSProperties
-                  }
-                >
-                  <article className="md-render">
-                    <MarkdownBody source={seg.markdown} taskId={taskId} />
-                  </article>
-                </div>
-              )
-            })}
-          </div>
-        ) : (
-          !empty && (
-            <article className="md-render rounded-2xl bg-white p-5 text-[14px] leading-relaxed text-ink">
-              <MarkdownBody source={activeMarkdown} taskId={taskId} />
-            </article>
-          )
-        )}
+        {linkingZh && !translating && <BusyOverlay kind="link" />}
+        {exportingPdf && <BusyOverlay kind="export" />}
       </div>
 
       {hasZh && (

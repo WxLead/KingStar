@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 
@@ -11,22 +12,68 @@ def translate_markdown(
     *,
     doc_stem: str | None = None,
     force: bool = False,
+    on_progress: Callable[[int, int], None] | None = None,
 ) -> Path:
     """Translate English MinerU Markdown to Chinese Markdown.
 
     Returns the output path. Skips work if output exists and force is False.
+    `on_progress(done, total)` reports markdown chunk completion.
     """
-    from start_translate.translate_md import main as translate_main
+    from start_translate.config import load_config, translate_cache_dir
+    from start_translate.translate_md import (
+        Translator,
+        build_client_config,
+        load_glossary,
+        normalize_blank_lines,
+        protect_blocks,
+        restore_blocks,
+        translate_document,
+        validate_structure,
+    )
 
     inp = Path(input_md)
     out = Path(output_md)
     if out.is_file() and not force:
+        if on_progress:
+            on_progress(1, 1)
         return out
     out.parent.mkdir(parents=True, exist_ok=True)
+
+    original = inp.read_text(encoding="utf-8")
+    protected = protect_blocks(original)
+    cfg = load_config()
+    api_key, base_url, model = build_client_config()
+    concurrency = max(1, int(cfg["translate"].get("concurrency") or 3))
     stem = doc_stem or inp.stem
-    rc = translate_main([str(inp), "-o", str(out), "--doc-stem", stem])
-    if rc != 0:
-        raise RuntimeError(f"translate_markdown failed with code {rc}")
+
+    translator = Translator(
+        api_key=api_key,
+        base_url=base_url,
+        model=model,
+        cache_dir=translate_cache_dir(),
+        glossary_hint=load_glossary(None),
+        doc_stem=stem,
+    )
+    translated_protected = translate_document(
+        protected,
+        translator,
+        concurrency=concurrency,
+        progress=print,
+        on_progress=on_progress,
+    )
+    translated = restore_blocks(translated_protected, protected.mapping)
+    translated = normalize_blank_lines(translated)
+    warnings = validate_structure(original, translated, protected.mapping)
+    out.write_text(translated, encoding="utf-8")
+    print(f"Wrote: {out}")
+    print(f"Protected blocks: {len(protected.mapping)}")
+    print("Blank-line normalize: on")
+    if warnings:
+        print("Validation warnings:")
+        for w in warnings:
+            print(f"  - {w}")
+    else:
+        print("Validation: OK")
     return out
 
 

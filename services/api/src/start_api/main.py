@@ -329,7 +329,31 @@ def _load_task(task_id: str) -> dict[str, Any] | None:
     return task
 
 
-def _translate_content_list(work: Path, *, doc_stem: str) -> Path | None:
+def _set_task_progress(
+    task: dict[str, Any],
+    *,
+    ratio: float,
+    message: str,
+    done: int | None = None,
+    total: int | None = None,
+) -> None:
+    """Persist lightweight progress for UI polling (0–1 ratio)."""
+    task["progress"] = {
+        "ratio": max(0.0, min(1.0, float(ratio))),
+        "message": message,
+        "done": done,
+        "total": total,
+    }
+    task["updated_at"] = _now()
+    _save_task(task)
+
+
+def _translate_content_list(
+    work: Path,
+    *,
+    doc_stem: str,
+    on_progress: Any | None = None,
+) -> Path | None:
     """Translate content_list.json text fields → content_list_zh.json (keeps bbox).
 
     Enables ZH markdown segments to share the same box linkage as English.
@@ -395,11 +419,18 @@ def _translate_content_list(work: Path, *, doc_stem: str) -> Path | None:
 
     # Preserve order; translate items concurrently
     results: list[Any | None] = [None] * len(items)
+    total = len(items)
+    done = 0
+    if on_progress:
+        on_progress(0, total)
     with ThreadPoolExecutor(max_workers=concurrency) as pool:
         futures = {pool.submit(translate_item, item): i for i, item in enumerate(items)}
         for fut in as_completed(futures):
             i = futures[fut]
             results[i] = fut.result()
+            done += 1
+            if on_progress:
+                on_progress(done, total)
 
     out_path = work / "content_list_zh.json"
     out_path.write_text(
@@ -419,15 +450,48 @@ def _translate_task_markdown(task_id: str, task: dict[str, Any], *, beautify: bo
     task["status"] = "translating"
     task["translate"] = True
     task["updated_at"] = _now()
-    _save_task(task)
+    _set_task_progress(task, ratio=0.02, message="准备翻译…")
 
     from start_translate.api import beautify_and_export, export_pdf, translate_markdown
 
     zh_path = work / "document_zh.md"
     pdf_path = work / ("document_zh_beautify.pdf" if beautify else "document_zh.pdf")
-    translate_markdown(md_path, zh_path, doc_stem=task_id, force=True)
-    _translate_content_list(work, doc_stem=task_id)
+
+    def on_md_progress(done: int, total: int) -> None:
+        # Markdown chunks occupy ~8% → 72%
+        t = max(total, 1)
+        ratio = 0.08 + 0.64 * (done / t)
+        _set_task_progress(
+            task,
+            ratio=ratio,
+            message=f"翻译正文 {done}/{total}",
+            done=done,
+            total=total,
+        )
+
+    translate_markdown(
+        md_path,
+        zh_path,
+        doc_stem=task_id,
+        force=True,
+        on_progress=on_md_progress,
+    )
+    _set_task_progress(task, ratio=0.74, message="生成译文联动段落…")
+
+    def on_cl_progress(done: int, total: int) -> None:
+        t = max(total, 1)
+        ratio = 0.74 + 0.18 * (done / t)
+        _set_task_progress(
+            task,
+            ratio=ratio,
+            message=f"联动段落 {done}/{total}",
+            done=done,
+            total=total,
+        )
+
+    _translate_content_list(work, doc_stem=task_id, on_progress=on_cl_progress)
     # PDF is best-effort — MD translation success must not be marked failed if export breaks
+    _set_task_progress(task, ratio=0.94, message="导出 PDF…")
     try:
         if beautify:
             html_path = work / "document_zh_beautify.html"
@@ -448,7 +512,7 @@ def _translate_task_markdown(task_id: str, task: dict[str, Any], *, beautify: bo
     if (work / "content_list_zh.json").is_file():
         result["content_list_zh_url"] = f"/api/v1/tasks/{task_id}/artifacts/content_list_zh"
     task["result"] = result
-
+    _set_task_progress(task, ratio=1.0, message="完成")
 
 def _run_translate_only(task_id: str, *, beautify: bool = False) -> None:
     task = _load_task(task_id)
@@ -459,6 +523,7 @@ def _run_translate_only(task_id: str, *, beautify: bool = False) -> None:
         task["status"] = "done"
         task["updated_at"] = _now()
         task["error"] = None
+        task["progress"] = {"ratio": 1.0, "message": "完成"}
         _save_task(task)
     except Exception as err:  # noqa: BLE001
         task["status"] = "failed"
@@ -674,6 +739,7 @@ def get_task(task_id: str) -> dict[str, Any]:
         "result": task.get("result"),
         "upload_id": task.get("upload_id"),
         "translate": task.get("translate"),
+        "progress": task.get("progress"),
     }
 
 

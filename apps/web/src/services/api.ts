@@ -44,6 +44,12 @@ export type TaskDetail = TaskSummary & {
     pdf_url?: string
     meta?: Record<string, unknown>
   } | null
+  progress?: {
+    ratio?: number
+    message?: string
+    done?: number
+    total?: number
+  } | null
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -174,13 +180,18 @@ export async function fetchArtifactJson<T = unknown>(taskId: string, name: strin
 
 export async function pollTask(
   taskId: string,
-  opts?: { intervalMs?: number; timeoutMs?: number },
+  opts?: {
+    intervalMs?: number
+    timeoutMs?: number
+    onUpdate?: (task: TaskDetail) => void
+  },
 ): Promise<TaskDetail> {
   const interval = opts?.intervalMs ?? 1500
   const timeout = opts?.timeoutMs ?? 30 * 60 * 1000
   const start = Date.now()
   while (Date.now() - start < timeout) {
     const task = await getTask(taskId)
+    opts?.onUpdate?.(task)
     if (task.status === 'done' || task.status === 'failed') return task
     await new Promise((r) => setTimeout(r, interval))
   }
