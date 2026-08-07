@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { motion } from 'framer-motion'
 import {
@@ -8,18 +9,36 @@ import {
   FileType,
   FileSpreadsheet,
   Presentation,
-  ScanSearch,
   Languages,
   Trash2,
   Loader2,
+  BookOpen,
+  LayoutList,
+  Download,
+  ChevronDown,
 } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import ListPageHero, { MetaChip } from '@/features/layout/ListPageHero'
+import { downloadTextFile } from '@/features/reading/notesExportMarkdown'
 import { useUploads } from '@/features/uploads/UploadsContext'
 import {
   isStageBusy,
   resolveStage,
   stageMeta,
 } from '@/features/uploads/pipelineStage'
-import { formatBytes, type UploadItem } from '@/services/api'
+import {
+  exportTaskPdf,
+  fetchArtifactText,
+  formatBytes,
+  formatUploadTime,
+  type UploadItem,
+} from '@/services/api'
 
 function fileIconMeta(filename: string): { icon: React.ReactNode; bg: string } {
   const ext = filename.split('.').pop()?.toLowerCase() ?? ''
@@ -116,7 +135,7 @@ function ActionBtn({
 
 function TaskRow({ item }: { item: UploadItem }) {
   const navigate = useNavigate()
-  const { selectedId, setSelectedId, busyId, remove, parseLayout, translateOneClick } = useUploads()
+  const { selectedId, setSelectedId, busyId, remove, translateOneClick } = useUploads()
   const stage = resolveStage(item)
   const status = stageMeta(stage)
   const fileMeta = fileIconMeta(item.filename)
@@ -124,21 +143,31 @@ function TaskRow({ item }: { item: UploadItem }) {
   const pipelineBusy = isStageBusy(stage)
   const busy = rowBusy || pipelineBusy
   const selected = selectedId === item.upload_id
-  const canParse = !pipelineBusy
-  const canTranslate = !pipelineBusy && (stage === 'parsed' || stage === 'completed' || stage === 'failed' || stage === 'unprocessed')
+  const canTranslate =
+    !pipelineBusy &&
+    (stage === 'parsed' || stage === 'completed' || stage === 'failed' || stage === 'unprocessed')
+  const [exporting, setExporting] = useState(false)
 
   const openWorkspace = () => {
     setSelectedId(item.upload_id)
     navigate('/')
   }
 
-  const onParse = async () => {
-    try {
-      await parseLayout(item.upload_id, { parse_backend: 'pipeline' })
-    } catch (err) {
-      alert(err instanceof Error ? err.message : '版面分析启动失败')
-    }
+  const openReading = () => {
+    setSelectedId(item.upload_id)
+    navigate(`/read/${item.upload_id}`)
   }
+
+  const canRead =
+    Boolean(item.last_task_id) &&
+    (stage === 'parsed' || stage === 'completed' || stage === 'failed' || stage === 'translating')
+
+  const canExportMd =
+    Boolean(item.last_task_id) &&
+    (stage === 'parsed' || stage === 'completed' || stage === 'failed' || stage === 'translating')
+  const canExportZh = canExportMd && Boolean(item.has_zh)
+
+  const baseName = (item.filename || 'document').replace(/\.[^.]+$/, '') || 'document'
 
   const onTranslate = async () => {
     try {
@@ -160,6 +189,34 @@ function TaskRow({ item }: { item: UploadItem }) {
     }
   }
 
+  const onExportMd = async (source: 'en' | 'zh') => {
+    const taskId = item.last_task_id
+    if (!taskId) return
+    setExporting(true)
+    try {
+      const text = await fetchArtifactText(taskId, source === 'zh' ? 'zh_markdown' : 'markdown')
+      if (!text.trim()) throw new Error(source === 'zh' ? '暂无译文 Markdown' : '暂无原文 Markdown')
+      downloadTextFile(`${baseName}${source === 'zh' ? '_zh' : ''}.md`, text)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Markdown 导出失败')
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const onExportPdf = async (source: 'en' | 'zh') => {
+    const taskId = item.last_task_id
+    if (!taskId) return
+    setExporting(true)
+    try {
+      await exportTaskPdf(taskId, source, `${baseName}${source === 'zh' ? '_zh' : ''}.pdf`)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'PDF 导出失败')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <li
       role="button"
@@ -171,10 +228,10 @@ function TaskRow({ item }: { item: UploadItem }) {
           openWorkspace()
         }
       }}
-      className={`group grid cursor-pointer grid-cols-[2.5rem_minmax(0,1fr)_5.5rem_auto] items-center gap-x-3 rounded-2xl border bg-white px-4 py-3.5 transition ${
+      className={`group grid cursor-pointer grid-cols-[2.5rem_minmax(0,1fr)_5.5rem_auto] items-center gap-x-3 rounded-2xl border bg-white/90 px-4 py-3.5 backdrop-blur-sm transition ${
         selected
           ? 'border-[#c7c9ef] shadow-[0_0_0_1px_rgba(79,70,229,0.12)]'
-          : 'border-[#eceef6] hover:border-[#dfe1f4] hover:shadow-sm'
+          : 'border-[#eceef6] hover:-translate-y-0.5 hover:border-[#d4d7f0] hover:shadow-[0_8px_24px_-12px_rgba(79,70,229,0.25)]'
       }`}
     >
       <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${fileMeta.bg}`}>
@@ -185,14 +242,13 @@ function TaskRow({ item }: { item: UploadItem }) {
         <p className="truncate text-[15px] font-semibold text-ink">{item.filename}</p>
         <p className="mt-0.5 truncate text-[12px] text-[#9aa0b8]">
           {formatBytes(item.size)}
-          {item.last_task_id ? ` · ${item.last_task_id.slice(0, 8)}…` : ''}
+          {item.created_at ? ` · ${formatUploadTime(item.created_at)}` : ''}
         </p>
       </div>
 
       <span
-        className={`inline-flex h-6 w-full items-center justify-center gap-1.5 rounded-md text-[11px] font-semibold ${status.badge}`}
+        className={`inline-flex h-6 w-full items-center justify-center rounded-md text-[11px] font-semibold ${status.badge}`}
       >
-        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${status.dot}`} />
         {status.label}
       </span>
 
@@ -202,19 +258,7 @@ function TaskRow({ item }: { item: UploadItem }) {
         onKeyDown={(e) => e.stopPropagation()}
       >
         <ActionBtn
-          label={stage === 'parsing' ? '分析中' : '版面分析'}
-          title="启动版面分析（后台）"
-          disabled={!canParse || rowBusy}
-          onClick={() => void onParse()}
-        >
-          {stage === 'parsing' || (rowBusy && stage === 'unprocessed') ? (
-            <Loader2 size={13} className="animate-spin" />
-          ) : (
-            <ScanSearch size={13} />
-          )}
-        </ActionBtn>
-        <ActionBtn
-          label={stage === 'translating' ? '翻译中' : '一键翻译'}
+          label={stage === 'translating' ? '翻译中' : '翻译'}
           title={
             stage === 'unprocessed'
               ? '未解析时将自动先分析再翻译'
@@ -229,60 +273,180 @@ function TaskRow({ item }: { item: UploadItem }) {
             <Languages size={13} />
           )}
         </ActionBtn>
-        <ActionBtn label="删除" title="删除文件" tone="danger" disabled={busy} onClick={() => void onDelete()}>
-          <Trash2 size={13} />
+        <ActionBtn
+          label="阅读"
+          title={canRead ? '进入阅读室' : '请先完成版面分析'}
+          disabled={!canRead}
+          onClick={openReading}
+        >
+          <BookOpen size={13} />
         </ActionBtn>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              disabled={!canExportMd || exporting || busy}
+              title={canExportMd ? '导出 Markdown 或 PDF' : '请先完成版面分析'}
+              className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-[#4f46e5] transition hover:bg-[#eef0fb] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+              <span>{exporting ? '导出中' : '导出'}</span>
+              <ChevronDown size={12} className="opacity-70" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-[11rem]" onClick={(e) => e.stopPropagation()}>
+            <DropdownMenuItem
+              className="gap-2 text-[13px]"
+              disabled={exporting}
+              onSelect={() => void onExportMd('en')}
+            >
+              <FileText size={14} className="text-[#4f46e5]" />
+              Markdown · 原文
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="gap-2 text-[13px]"
+              disabled={exporting || !canExportZh}
+              onSelect={() => void onExportMd('zh')}
+            >
+              <FileText size={14} className="text-[#7c3aed]" />
+              Markdown · 译文
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="gap-2 text-[13px]"
+              disabled={exporting}
+              onSelect={() => void onExportPdf('en')}
+            >
+              <Download size={14} className="text-[#e23f2b]" />
+              PDF · 原文
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="gap-2 text-[13px]"
+              disabled={exporting || !canExportZh}
+              onSelect={() => void onExportPdf('zh')}
+            >
+              <Download size={14} className="text-[#ea580c]" />
+              PDF · 译文
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <button
+          type="button"
+          title="删除文件"
+          disabled={busy}
+          onClick={() => void onDelete()}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#dc2626] transition hover:bg-[#fef2f2] disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <Trash2 size={14} />
+        </button>
       </div>
     </li>
   )
 }
 
+type TaskFilter = 'all' | 'busy' | 'ready'
+
+function isReadyStage(item: UploadItem): boolean {
+  const s = resolveStage(item)
+  return s === 'completed' || s === 'parsed'
+}
+
 export default function TasksPage() {
   const { items, loading, error } = useUploads()
   const navigate = useNavigate()
+  const [filter, setFilter] = useState<TaskFilter>('all')
+
+  const busyItems = items.filter((i) => isStageBusy(resolveStage(i)))
+  const readyItems = items.filter(isReadyStage)
+  const visible =
+    filter === 'busy' ? busyItems : filter === 'ready' ? readyItems : items
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-[#e8e9f4] bg-[#f8f8fd]">
-      <div className="shrink-0 px-8 pb-2 pt-8">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="font-display text-[28px] text-ink">任务管理</h1>
-            <p className="mt-2 text-[15px] text-ink-soft">
-              管理已上传文件：版面分析、一键翻译、删除；点击行打开左右栏工作区
-            </p>
-          </div>
+      <ListPageHero
+        title="任务管理"
+        subtitle="跟进每篇文献的解析与翻译进度，点行进入工作区继续处理。"
+        meta={
+          !loading && items.length > 0 ? (
+            <>
+              <MetaChip
+                label="全部"
+                value={items.length}
+                tone="neutral"
+                active={filter === 'all'}
+                onClick={() => setFilter('all')}
+              />
+              <MetaChip
+                label="进行中"
+                value={busyItems.length}
+                tone={busyItems.length ? 'accent' : 'muted'}
+                active={filter === 'busy'}
+                onClick={() => setFilter('busy')}
+              />
+              <MetaChip
+                label="已就绪"
+                value={readyItems.length}
+                tone="accent"
+                active={filter === 'ready'}
+                onClick={() => setFilter('ready')}
+              />
+            </>
+          ) : undefined
+        }
+        action={
           <button
             type="button"
             onClick={() => navigate('/')}
-            className="rounded-xl bg-gradient-to-r from-[#4f46e5] to-[#7c3aed] px-4 py-2 text-[13px] font-bold text-white shadow-sm transition hover:opacity-95"
+            className="rounded-xl bg-[#4f46e5] px-4 py-2 text-[13px] font-bold text-white shadow-sm transition hover:opacity-95"
           >
-            去上传新文件
+            上传新文件
           </button>
-        </div>
-      </div>
+        }
+      />
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-8 pb-8 pt-4">
-        {loading && <p className="text-[15px] text-[#9aa0b8]">加载中…</p>}
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        {loading && <p className="px-2 text-[15px] text-[#9aa0b8]">加载中…</p>}
         {error && (
-          <p className="text-[15px] text-[#b45309]">
+          <p className="px-2 text-[15px] text-[#b45309]">
             {error.includes('Failed') || error.includes('fetch')
               ? '无法连接 BFF，请先启动 services/api'
               : error}
           </p>
         )}
         {!loading && !error && items.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-[#d5d8ec] bg-white/70 px-6 py-14 text-center">
-            <p className="text-[15px] text-[#9aa0b8]">暂无文件。先在「新解析」上传文档。</p>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mx-auto flex max-w-md flex-col items-center px-6 py-16 text-center"
+          >
+            <motion.div
+              animate={{ y: [0, -5, 0] }}
+              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+              className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#eef0fd] to-[#e4e6fb] shadow-sm"
+            >
+              <LayoutList size={28} className="text-[#4f46e5]" />
+            </motion.div>
+            <p className="mt-5 text-[16px] font-semibold text-ink">还没有任务</p>
+            <p className="mt-1.5 text-[14px] leading-relaxed text-[#9aa0b8]">
+              上传文档后，解析与翻译进度都会汇总在这里。
+            </p>
             <button
               type="button"
               onClick={() => navigate('/')}
-              className="mt-4 text-[13px] font-semibold text-[#4f46e5] hover:underline"
+              className="mt-5 rounded-xl bg-[#4f46e5] px-4 py-2 text-[13px] font-semibold text-white transition hover:opacity-95"
             >
               前往上传
             </button>
-          </div>
+          </motion.div>
         )}
-        {!loading && items.length > 0 && (
+        {!loading && items.length > 0 && visible.length === 0 && (
+          <p className="px-2 py-10 text-center text-[14px] text-[#9aa0b8]">
+            {filter === 'busy' ? '暂无进行中的任务' : filter === 'ready' ? '暂无已就绪任务' : '暂无任务'}
+          </p>
+        )}
+        {!loading && visible.length > 0 && (
           <motion.ul
             initial="hidden"
             animate="show"
@@ -292,7 +456,7 @@ export default function TasksPage() {
             }}
             className="space-y-2.5"
           >
-            {items.map((f) => (
+            {visible.map((f) => (
               <motion.div
                 key={f.upload_id}
                 variants={{

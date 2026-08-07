@@ -12,44 +12,20 @@ export function resolveStage(item: UploadItem): PipelineStage {
   return 'unprocessed'
 }
 
-export function stageMeta(stage: PipelineStage): { label: string; badge: string; dot: string } {
+export function stageMeta(stage: PipelineStage): { label: string; badge: string } {
   switch (stage) {
     case 'unprocessed':
-      return {
-        label: '未处理',
-        badge: 'bg-[#fef2f2] text-[#dc2626]',
-        dot: 'bg-[#dc2626]',
-      }
+      return { label: '未处理', badge: 'bg-[#fef2f2] text-[#dc2626]' }
     case 'parsing':
-      return {
-        label: '分析中',
-        badge: 'bg-[#eef0fb] text-[#4f46e5]',
-        dot: 'bg-[#4f46e5] animate-pulse',
-      }
+      return { label: '分析中', badge: 'bg-[#eef0fb] text-[#4f46e5]' }
     case 'translating':
-      return {
-        label: '翻译中',
-        badge: 'bg-[#eef0fb] text-[#4f46e5]',
-        dot: 'bg-[#4f46e5] animate-pulse',
-      }
+      return { label: '翻译中', badge: 'bg-[#eef0fb] text-[#4f46e5]' }
     case 'parsed':
-      return {
-        label: '已解析',
-        badge: 'bg-[#eff6ff] text-[#2563eb]',
-        dot: 'bg-[#2563eb]',
-      }
+      return { label: '已解析', badge: 'bg-[#eff6ff] text-[#2563eb]' }
     case 'completed':
-      return {
-        label: '已完成',
-        badge: 'bg-[#ecfdf5] text-[#059669]',
-        dot: 'bg-[#059669]',
-      }
+      return { label: '已完成', badge: 'bg-[#ecfdf5] text-[#059669]' }
     case 'failed':
-      return {
-        label: '失败',
-        badge: 'bg-[#fef2f2] text-[#dc2626]',
-        dot: 'bg-[#dc2626]',
-      }
+      return { label: '失败', badge: 'bg-[#fef2f2] text-[#dc2626]' }
   }
 }
 

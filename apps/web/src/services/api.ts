@@ -271,8 +271,210 @@ export function health(): Promise<{ ok: boolean; mineru: string; translate: stri
   return request('/health')
 }
 
+export type LlmSettingsPublic = {
+  api_key_set: boolean
+  api_key_masked: string
+  base_url: string
+  model: string
+  source: 'settings' | 'env' | 'default'
+}
+
+export type LlmSettingsUpdate = {
+  api_key?: string | null
+  base_url?: string | null
+  model?: string | null
+  clear_api_key?: boolean
+}
+
+export type LlmModelsResult = {
+  ok: boolean
+  models: string[]
+  detail: string
+  base_url: string
+}
+
+export function getLlmSettings(): Promise<LlmSettingsPublic> {
+  return request('/settings/llm')
+}
+
+export function saveLlmSettings(body: LlmSettingsUpdate): Promise<LlmSettingsPublic> {
+  return request('/settings/llm', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export function listLlmModels(body: {
+  api_key?: string | null
+  base_url?: string | null
+}): Promise<LlmModelsResult> {
+  return request('/settings/llm/models', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export type ReadingChatMessage = {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export type ReadingChatUsage = {
+  used: number
+  budget: number
+  pct: number
+  compacted?: boolean
+  paper_digest?: string
+  model_limit?: number
+}
+
+export type ReadingChatStreamHandlers = {
+  onDelta?: (text: string) => void
+  onUsage?: (usage: ReadingChatUsage) => void
+  onCompacted?: (detail: string) => void
+  onDone?: (info: { model: string } & Partial<ReadingChatUsage>) => void
+  signal?: AbortSignal
+}
+
+/** Reading-room Q&A via BFF → DeepSeek (SSE stream). */
+export async function readingChatStream(
+  opts: {
+    message: string
+    filename?: string
+    markdown?: string
+    zhMarkdown?: string | null
+    paperDigest?: string
+    history?: ReadingChatMessage[]
+  },
+  handlers: ReadingChatStreamHandlers = {},
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/reading/chat`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+    },
+    body: JSON.stringify({
+      message: opts.message,
+      filename: opts.filename || '',
+      markdown: opts.markdown || '',
+      zh_markdown: opts.zhMarkdown || '',
+      paper_digest: opts.paperDigest || '',
+      history: opts.history || [],
+    }),
+    signal: handlers.signal,
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(text || `${res.status} ${res.statusText}`)
+  }
+  if (!res.body) {
+    throw new Error('浏览器不支持流式响应')
+  }
+
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder('utf-8')
+  let buffer = ''
+
+  const handleEvent = (raw: string) => {
+    const dataLine = raw
+      .split('\n')
+      .map((l) => l.trimEnd())
+      .find((l) => l.startsWith('data:'))
+    if (!dataLine) return
+    const jsonText = dataLine.replace(/^data:\s*/, '')
+    if (!jsonText || jsonText === '[DONE]') return
+    let payload: {
+      type?: string
+      text?: string
+      model?: string
+      detail?: string
+      used?: number
+      budget?: number
+      pct?: number
+      compacted?: boolean
+      paper_digest?: string
+      model_limit?: number
+    }
+    try {
+      payload = JSON.parse(jsonText) as typeof payload
+    } catch {
+      return
+    }
+    if (payload.type === 'delta' && payload.text) {
+      handlers.onDelta?.(payload.text)
+    } else if (payload.type === 'usage') {
+      handlers.onUsage?.({
+        used: Number(payload.used) || 0,
+        budget: Number(payload.budget) || 0,
+        pct: Number(payload.pct) || 0,
+        compacted: Boolean(payload.compacted),
+        paper_digest: payload.paper_digest,
+        model_limit: payload.model_limit,
+      })
+    } else if (payload.type === 'compacted') {
+      handlers.onCompacted?.(payload.detail || '已压缩较早对话')
+    } else if (payload.type === 'done') {
+      handlers.onDone?.({
+        model: payload.model || '',
+        used: payload.used,
+        budget: payload.budget,
+        pct: payload.pct,
+        paper_digest: payload.paper_digest,
+      })
+    } else if (payload.type === 'error') {
+      throw new Error(payload.detail || 'DeepSeek 调用失败')
+    }
+  }
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const parts = buffer.split('\n\n')
+    buffer = parts.pop() || ''
+    for (const part of parts) {
+      if (part.trim()) handleEvent(part)
+    }
+  }
+  if (buffer.trim()) handleEvent(buffer)
+}
+
+/** @deprecated Prefer readingChatStream — kept for non-UI callers. */
+export async function readingChat(opts: {
+  message: string
+  filename?: string
+  markdown?: string
+  zhMarkdown?: string | null
+  paperDigest?: string
+  history?: ReadingChatMessage[]
+}): Promise<{ reply: string; model: string }> {
+  let reply = ''
+  let model = ''
+  await readingChatStream(opts, {
+    onDelta: (t) => {
+      reply += t
+    },
+    onDone: (info) => {
+      model = info.model
+    },
+  })
+  return { reply, model }
+}
+
 export function formatBytes(size: number): string {
   if (size < 1024) return `${size} B`
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
   return `${(size / (1024 * 1024)).toFixed(1)} MB`
+}
+
+/** Format upload created_at for list secondary lines. */
+export function formatUploadTime(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }

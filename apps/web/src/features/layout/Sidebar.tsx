@@ -5,7 +5,6 @@ import {
   LayoutList,
   BookOpen,
   Star,
-  Trash2,
   FileText,
   File,
   FileCode,
@@ -13,14 +12,26 @@ import {
   FileType,
   FileSpreadsheet,
   Presentation,
+  MoreHorizontal,
+  Trash2,
+  PanelLeftClose,
+  Settings,
 } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { useSidebarChrome } from '@/features/layout/SidebarChrome'
+import { formatShortcut, useKeyboardShortcuts } from '@/features/settings/keyboardShortcuts'
 import { useUploads } from '@/features/uploads/UploadsContext'
 import { resolveStage, stageMeta } from '@/features/uploads/pipelineStage'
-import { formatBytes, type UploadItem } from '@/services/api'
+import type { UploadItem } from '@/services/api'
 
 function StarTLogo() {
   return (
-    <div className="flex items-center gap-3.5 px-2">
+    <div className="flex min-w-0 flex-1 items-center gap-3.5 px-2">
       <motion.svg
         width="48"
         height="48"
@@ -28,6 +39,7 @@ function StarTLogo() {
         fill="none"
         whileHover={{ rotate: 12, scale: 1.08 }}
         transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+        className="shrink-0"
       >
         <rect width="40" height="40" rx="12" fill="url(#starGrad)" />
         <path
@@ -41,9 +53,11 @@ function StarTLogo() {
           </linearGradient>
         </defs>
       </motion.svg>
-      <div className="leading-tight">
+      <div className="min-w-0 leading-tight">
         <span className="font-display block text-[32px] text-ink">StarT</span>
-        <span className="block text-[13px] font-medium tracking-wide text-[#9aa0b8]">论文解析 · 翻译 · 解读</span>
+        <span className="block truncate text-[13px] font-medium tracking-wide text-[#9aa0b8]">
+          论文解析 · 翻译 · 解读
+        </span>
       </div>
     </div>
   )
@@ -151,6 +165,12 @@ function fileIconMeta(filename: string): {
   }
 }
 
+function canEnterReading(item: UploadItem): boolean {
+  if (!item.last_task_id) return false
+  const stage = resolveStage(item)
+  return stage === 'parsed' || stage === 'completed' || stage === 'failed' || stage === 'translating'
+}
+
 function UploadRow({ item }: { item: UploadItem }) {
   const navigate = useNavigate()
   const { selectedId, setSelectedId, busyId, remove } = useUploads()
@@ -159,64 +179,91 @@ function UploadRow({ item }: { item: UploadItem }) {
   const stage = resolveStage(item)
   const status = stageMeta(stage)
   const fileMeta = fileIconMeta(item.filename)
+  const readable = canEnterReading(item)
 
-  const openItem = () => {
+  const openWorkspace = () => {
     setSelectedId(item.upload_id)
     navigate('/')
+  }
+
+  const openReading = () => {
+    setSelectedId(item.upload_id)
+    navigate(`/read/${item.upload_id}`)
+  }
+
+  const onDelete = async () => {
+    if (!confirm(`删除「${item.filename}」？`)) return
+    try {
+      await remove(item.upload_id)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '删除失败')
+    }
   }
 
   return (
     <div
       role="button"
       tabIndex={0}
-      onClick={openItem}
+      onClick={openWorkspace}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
-          openItem()
+          openWorkspace()
         }
       }}
-      className={`group grid cursor-pointer grid-cols-[36px_minmax(0,1fr)_3.75rem_28px] items-center gap-x-2 rounded-xl px-2 py-2 transition-colors ${
+      className={`group flex cursor-pointer items-center gap-2 rounded-xl px-2 py-2 transition-colors ${
         selected ? 'bg-white shadow-sm ring-1 ring-[#dfe1f4]' : 'hover:bg-white/70'
       }`}
     >
-      <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${fileMeta.bg}`}>
+      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${fileMeta.bg}`}>
         {fileMeta.icon}
       </span>
 
-      <span className="min-w-0">
-        <span className="block truncate text-[13.5px] font-semibold leading-5 text-ink">
-          {item.filename}
-        </span>
-        <span className="mt-0.5 block truncate text-[11.5px] leading-4 text-[#9aa0b8]">
-          {formatBytes(item.size)}
-        </span>
+      <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold leading-5 text-ink">
+        {item.filename}
       </span>
 
-      <span
-        className={`inline-flex h-6 w-full items-center justify-center gap-1 rounded-md text-[11px] font-semibold tracking-wide ${status.badge}`}
-      >
-        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${status.dot}`} />
-        {status.label}
-      </span>
-
-      <button
-        type="button"
-        disabled={busy}
-        title="删除"
-        onClick={async (e) => {
-          e.stopPropagation()
-          if (!confirm(`删除「${item.filename}」？`)) return
-          try {
-            await remove(item.upload_id)
-          } catch (err) {
-            alert(err instanceof Error ? err.message : '删除失败')
-          }
-        }}
-        className="flex h-7 w-7 items-center justify-center rounded-lg text-[#b45309] opacity-0 transition hover:bg-[#fef2f2] group-hover:opacity-100 disabled:opacity-40"
-      >
-        <Trash2 size={13} />
-      </button>
+      <div className="ml-auto flex shrink-0 items-center justify-end gap-1.5">
+        <span
+          className={`inline-flex h-6 items-center justify-center rounded-md px-2 text-[11px] font-semibold tracking-wide ${status.badge}`}
+        >
+          {status.label}
+        </span>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              title="更多操作"
+              onClick={(e) => e.stopPropagation()}
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-[#4f46e5] transition hover:bg-[#eef0fb]"
+            >
+              <MoreHorizontal size={15} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            className="min-w-[8.5rem]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <DropdownMenuItem
+              className="gap-2 text-[13px]"
+              disabled={!readable}
+              onSelect={() => openReading()}
+            >
+              <BookOpen size={14} className="text-[#4f46e5]" />
+              阅读
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="gap-2 text-[13px] text-[#dc2626] focus:text-[#dc2626]"
+              disabled={busy}
+              onSelect={() => void onDelete()}
+            >
+              <Trash2 size={14} />
+              删除
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
   )
 }
@@ -232,12 +279,23 @@ const itemAnim = {
 
 export default function Sidebar() {
   const { items, loading, error, setSelectedId } = useUploads()
+  const { setOpen } = useSidebarChrome()
+  const shortcuts = useKeyboardShortcuts()
+  const toggleLabel = formatShortcut(shortcuts.toggleSidebar)
 
   return (
     <aside className="sticky top-0 flex h-screen w-[340px] shrink-0 flex-col self-start bg-[#f5f6fb] px-4 pb-6 pt-7">
       <motion.div variants={container} initial="hidden" animate="show" className="flex min-h-0 flex-1 flex-col">
-        <motion.div variants={itemAnim}>
+        <motion.div variants={itemAnim} className="flex items-start gap-1">
           <StarTLogo />
+          <button
+            type="button"
+            title={`收起侧边栏 (${toggleLabel})`}
+            onClick={() => setOpen(false)}
+            className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[#6a70a0] transition hover:bg-white hover:text-[#4f46e5] hover:shadow-sm"
+          >
+            <PanelLeftClose size={18} />
+          </button>
         </motion.div>
 
         <motion.nav variants={itemAnim} className="mt-7 space-y-1.5">
@@ -250,8 +308,9 @@ export default function Sidebar() {
             onNavigate={() => setSelectedId(null)}
           />
           <NavItem to="/tasks" icon={<LayoutList size={22} />} label="任务管理" />
-          <NavItem to="/library" icon={<BookOpen size={22} />} label="文献库" />
+          <NavItem to="/library" icon={<BookOpen size={22} />} label="文献阅读" />
           <NavItem to="/favorites" icon={<Star size={22} />} label="我的收藏" />
+          <NavItem to="/settings" icon={<Settings size={22} />} label="通用设置" />
         </motion.nav>
 
         <motion.div variants={itemAnim} className="mx-1 my-4 border-t border-[#e4e6f0]" />

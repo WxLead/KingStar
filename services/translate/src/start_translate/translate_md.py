@@ -591,15 +591,57 @@ def default_output_path(input_path: Path) -> Path:
 
 
 def build_client_config() -> tuple[str, str, str]:
+    """OpenAI-compatible client config (Settings UI override > env)."""
     from start_translate.config import ROOT_DIR
+
     load_dotenv(ROOT_DIR / ".env")
     load_dotenv()
-    api_key = os.getenv("DEEPSEEK_API_KEY", "").strip()
-    base_url = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com").strip()
-    model = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash").strip()
+
+    # Prefer runtime settings written by BFF「通用设置」
+    override: dict | None = None
+    candidates: list[Path] = []
+    env_path = os.getenv("START_LLM_SETTINGS", "").strip()
+    if env_path:
+        candidates.append(Path(env_path))
+    data_dir = os.getenv("START_DATA_DIR", "").strip()
+    if data_dir:
+        candidates.append(Path(data_dir) / "llm_settings.json")
+    # translate_md.py → parents[3]=services → api/.data
+    here = Path(__file__).resolve()
+    candidates.append(here.parents[3] / "api" / ".data" / "llm_settings.json")
+    candidates.append(here.parents[4] / ".data" / "llm_settings.json")
+
+    for path in candidates:
+        if path.is_file():
+            try:
+                raw = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(raw, dict):
+                    override = raw
+                    break
+            except (OSError, json.JSONDecodeError):
+                continue
+
+    api_key = (
+        (str(override.get("api_key") or "").strip() if override else "")
+        or os.getenv("DEEPSEEK_API_KEY", "").strip()
+        or os.getenv("OPENAI_API_KEY", "").strip()
+    )
+    base_url = (
+        (str(override.get("base_url") or "").strip() if override else "")
+        or os.getenv("DEEPSEEK_BASE_URL", "").strip()
+        or os.getenv("OPENAI_BASE_URL", "").strip()
+        or "https://api.deepseek.com"
+    ).rstrip("/")
+    model = (
+        (str(override.get("model") or "").strip() if override else "")
+        or os.getenv("DEEPSEEK_MODEL", "").strip()
+        or os.getenv("OPENAI_MODEL", "").strip()
+        or "deepseek-v4-flash"
+    )
     if not api_key:
         raise SystemExit(
-            "Missing DEEPSEEK_API_KEY. Copy .env.example to .env and fill your key."
+            "Missing API key. Configure in StarT「通用设置 → AI API」, "
+            "or set DEEPSEEK_API_KEY / OPENAI_API_KEY in .env."
         )
     return api_key, base_url, model
 

@@ -48,9 +48,23 @@ if (-not $MinerUHome) {
 }
 
 function Test-PortListening([int]$Port) {
+  # Only count Listen sockets whose OwningProcess still exists (ignore Windows ghost binds).
   try {
-    $c = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
-    return $null -ne $c
+    $conns = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)
+    foreach ($c in $conns) {
+      $proc = Get-Process -Id $c.OwningProcess -ErrorAction SilentlyContinue
+      if ($null -ne $proc) { return $true }
+    }
+    return $false
+  } catch {
+    return $false
+  }
+}
+
+function Test-HttpOk([string]$Url, [int]$TimeoutSec = 2) {
+  try {
+    $r = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec $TimeoutSec
+    return $r.StatusCode -ge 200 -and $r.StatusCode -lt 500
   } catch {
     return $false
   }
@@ -112,9 +126,19 @@ Read-Host
   New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
   $logPath = Join-Path $LogDir "$Name.log"
   $errPath = Join-Path $LogDir "$Name.err.log"
-  # Clear previous run logs
-  "" | Set-Content -Path $logPath -Encoding UTF8
-  "" | Set-Content -Path $errPath -Encoding UTF8
+  # Clear previous run logs (ignore if still locked by a dead redirect handle)
+  foreach ($p in @($logPath, $errPath)) {
+    try {
+      "" | Set-Content -Path $p -Encoding UTF8 -ErrorAction Stop
+    } catch {
+      $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+      if ($p -eq $logPath) {
+        $logPath = Join-Path $LogDir "$Name-$stamp.log"
+      } else {
+        $errPath = Join-Path $LogDir "$Name-$stamp.err.log"
+      }
+    }
+  }
 
   $ps = @"
 Set-Location -LiteralPath '$WorkingDirectory'
@@ -142,13 +166,16 @@ Write-Host "Mode:       $Mode" -ForegroundColor Green
 # --- MinerU ---
 if ($SkipMinerU) {
   Write-Host "[skip] MinerU (-SkipMinerU)" -ForegroundColor DarkYellow
-} elseif (Test-PortListening 8000) {
+} elseif ((Test-PortListening 8000) -and (Test-HttpOk "http://127.0.0.1:8000/docs")) {
   Write-Host "[ok]   MinerU already on :8000" -ForegroundColor DarkYellow
 } else {
   if (-not (Test-Path $MinerUHome)) {
     Write-Host "[warn] MinerU home not found: $MinerUHome" -ForegroundColor Yellow
     Write-Host "       Set MINERU_HOME or pass -MinerUHome. Continuing without MinerU." -ForegroundColor Yellow
   } else {
+    if (Test-PortListening 8000) {
+      Write-Host "[warn] :8000 looks occupied but MinerU health failed; starting anyway" -ForegroundColor Yellow
+    }
     $mineruCmd = "mineru-api --host 127.0.0.1 --port 8000"
     $venvActivate = Join-Path $MinerUHome ".venv\Scripts\Activate.ps1"
     if (Test-Path $venvActivate) {
@@ -161,25 +188,35 @@ if ($SkipMinerU) {
 }
 
 # --- BFF ---
-if (Test-PortListening 8080) {
+if ((Test-PortListening 8080) -and (Test-HttpOk "http://127.0.0.1:8080/api/v1/health")) {
   Write-Host "[ok]   BFF already on :8080" -ForegroundColor DarkYellow
 } else {
-  $apiVenv = Join-Path $ApiDir ".venv\Scripts\Activate.ps1"
-  if (-not (Test-Path $apiVenv)) {
-    throw "BFF venv missing: $apiVenv`nRun first-time setup from README (pip install -e ...)."
+  $apiPython = Join-Path $ApiDir ".venv\Scripts\python.exe"
+  if (-not (Test-Path $apiPython)) {
+    throw "BFF venv missing: $apiPython`nRun first-time setup from README (pip install -e ...)."
   }
-  $bffCmd = "& '$apiVenv'; uvicorn start_api.main:app --reload --port 8080"
+  if (-not (Test-PortListening 8080) -and (Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue)) {
+    Write-Host "[warn] :8080 has ghost Listen entries (no live process); starting BFF" -ForegroundColor Yellow
+  } elseif (Test-PortListening 8080) {
+    Write-Host "[warn] :8080 occupied but /health failed; starting BFF anyway" -ForegroundColor Yellow
+  }
+  # Use venv python -m uvicorn. Avoid --reload on Windows: the reloader child
+  # often respawns under Anaconda/system Python and serves a stale package.
+  $bffCmd = "& '$apiPython' -m uvicorn start_api.main:app --host 127.0.0.1 --port 8080"
   Write-Host "[start] BFF :8080" -ForegroundColor Cyan
   Start-DevService -Name "bff" -Port 8080 -Title "StarT BFF :8080" `
     -WorkingDirectory $ApiDir -Command $bffCmd
 }
 
 # --- Web ---
-if (Test-PortListening 3000) {
+if ((Test-PortListening 3000) -and (Test-HttpOk "http://127.0.0.1:3000/")) {
   Write-Host "[ok]   Web already on :3000" -ForegroundColor DarkYellow
 } else {
   if (-not (Test-Path (Join-Path $WebDir "node_modules"))) {
     throw "Web node_modules missing. Run: cd apps\web; npm install"
+  }
+  if (Test-PortListening 3000) {
+    Write-Host "[warn] :3000 occupied but Web not responding; starting anyway" -ForegroundColor Yellow
   }
   Write-Host "[start] Web :3000" -ForegroundColor Cyan
   Start-DevService -Name "web" -Port 3000 -Title "StarT Web :3000" `

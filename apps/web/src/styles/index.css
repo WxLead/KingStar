@@ -264,3 +264,168 @@
   background: color-mix(in srgb, var(--seg-color) 14%, transparent);
   box-shadow: inset 0 0 0 1.5px var(--seg-color);
 }
+
+/* ===== TipTap notes editor ===== */
+.notes-editor.ProseMirror {
+  min-height: 100%;
+  text-align: justify;
+}
+.notes-editor.ProseMirror p.is-editor-empty:first-child::before,
+.notes-editor.ProseMirror .is-empty::before {
+  color: #b0b5c9;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+.notes-editor.ProseMirror h1.is-empty::before,
+.notes-editor.ProseMirror h2.is-empty::before,
+.notes-editor.ProseMirror h3.is-empty::before,
+.notes-editor.ProseMirror h4.is-empty::before,
+.notes-editor.ProseMirror blockquote.is-empty::before,
+.notes-editor.ProseMirror li.is-empty::before,
+.notes-editor.ProseMirror pre.is-empty::before {
+  color: #b0b5c9;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+.notes-editor.ProseMirror h1 {
+  font-size: 1.55rem;
+  font-weight: 700;
+  line-height: 1.3;
+  margin: 0.6em 0 0.35em;
+}
+.notes-editor.ProseMirror h2 {
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 0.55em 0 0.3em;
+}
+.notes-editor.ProseMirror h3 {
+  font-size: 1.12rem;
+  font-weight: 700;
+  line-height: 1.4;
+  margin: 0.5em 0 0.25em;
+}
+.notes-editor.ProseMirror h4 {
+  font-size: 1.02rem;
+  font-weight: 700;
+  line-height: 1.4;
+  margin: 0.45em 0 0.2em;
+}
+.notes-editor.ProseMirror:focus {
+  outline: none;
+}
+.notes-editor.ProseMirror ul {
+  list-style-type: disc;
+  padding-left: 1.5em;
+}
+.notes-editor.ProseMirror ol {
+  list-style-type: decimal;
+  padding-left: 1.5em;
+}
+.notes-editor.ProseMirror blockquote {
+  border-left: 3px solid #c7c9ef;
+  margin: 0.75em 0;
+  padding-left: 0.9em;
+  color: #6a70a0;
+}
+.notes-editor.ProseMirror code {
+  background: #eef0fb;
+  border-radius: 0.35rem;
+  font-size: 0.9em;
+  padding: 0.1em 0.35em;
+}
+.notes-editor.ProseMirror pre {
+  background: #1e2a52;
+  border-radius: 0.75rem;
+  color: #f8f8fd;
+  font-size: 0.85em;
+  margin: 0.75em 0;
+  overflow-x: auto;
+  padding: 0.85em 1em;
+}
+.notes-editor.ProseMirror pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+.notes-editor.ProseMirror .notes-math .katex {
+  font-size: 1.05em;
+}
+.notes-editor.ProseMirror .notes-callout-content > *:first-child {
+  margin-top: 0;
+}
+.notes-editor.ProseMirror .notes-callout-content > *:last-child {
+  margin-bottom: 0;
+}
+.notes-editor.ProseMirror .notes-callout-content p {
+  margin: 0.25em 0;
+}
+.notes-editor.ProseMirror p[style*='text-align: center'] .notes-math,
+.notes-editor.ProseMirror h1[style*='text-align: center'] .notes-math,
+.notes-editor.ProseMirror h2[style*='text-align: center'] .notes-math,
+.notes-editor.ProseMirror h3[style*='text-align: center'] .notes-math {
+  display: inline-block;
+  width: 100%;
+  text-align: center;
+}
+
+/* Slash command popup (tippy host) */
+.tippy-box[data-theme~='notes-slash'] {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+.tippy-box[data-theme~='notes-slash'] > .tippy-content {
+  padding: 0;
+}
+.tippy-box[data-theme~='notes-slash'] > .tippy-arrow {
+  display: none;
+}
+
+/* AI chat markdown bubbles */
+.ai-chat-md.md-render {
+  font-size: 13.5px;
+  line-height: 1.7;
+}
+.ai-chat-md.md-render > :first-child {
+  margin-top: 0;
+}
+.ai-chat-md.md-render > :last-child {
+  margin-bottom: 0;
+}
+.ai-chat-md.md-render p {
+  margin: 0.4em 0;
+}
+.ai-chat-md.md-render h1,
+.ai-chat-md.md-render h2,
+.ai-chat-md.md-render h3 {
+  margin: 0.55em 0 0.3em;
+  font-size: 1.05em;
+}
+.ai-chat-md.md-render ul,
+.ai-chat-md.md-render ol {
+  margin: 0.35em 0;
+  padding-left: 1.25em;
+}
+.ai-chat-md.md-render pre {
+  margin: 0.5em 0;
+  padding: 0.65em 0.75em;
+  font-size: 0.9em;
+}
+.ai-chat-md.md-render table {
+  font-size: 0.92em;
+}
+.ai-chat-md .katex {
+  font-size: 1.05em;
+}
+.ai-chat-md .katex-display {
+  margin: 0.65em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+

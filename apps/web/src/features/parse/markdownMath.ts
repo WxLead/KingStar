@@ -82,3 +82,30 @@ export function prepareMarkdown(src: string): string {
 
   return s
 }
+
+/**
+ * Normalize common LLM math delimiters so remark-math + KaTeX can render them.
+ * Models often emit \( \), \[ \], or ```latex fences instead of $ / $$.
+ */
+export function prepareAiChatMarkdown(src: string): string {
+  let s = src.replace(/\r\n/g, '\n')
+
+  // ```math / ```latex / ```tex → display math
+  s = s.replace(/```(?:math|latex|tex)\s*\n([\s\S]*?)```/gi, (_m, tex: string) => {
+    return `$$\n${String(tex).trim()}\n$$`
+  })
+
+  // \[ ... \] display (non-greedy, multiline)
+  s = s.replace(/\\\[([\s\S]*?)\\\]/g, (_m, tex: string) => `$$${String(tex).trim()}$$`)
+
+  // \( ... \) inline
+  s = s.replace(/\\\(([\s\S]*?)\\\)/g, (_m, tex: string) => `$${String(tex).trim()}$`)
+
+  // \begin{equation|align|aligned*} ... \end{...}
+  s = s.replace(
+    /\\begin\{(equation|align|aligned|gather|eqnarray)\*?\}([\s\S]*?)\\end\{\1\*?\}/g,
+    (_m, _env: string, body: string) => `$$\n${String(body).trim()}\n$$`,
+  )
+
+  return prepareMarkdown(s)
+}

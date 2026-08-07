@@ -760,7 +760,8 @@ function PdfPages({
   )
 }
 
-function FilePreview({
+/** Shared original-file preview (PDF / image / text). Used by workspace + reading room. */
+export function FilePreview({
   item,
   zoom,
   scrollParentRef,

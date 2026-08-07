@@ -14,7 +14,7 @@ from typing import Any, Literal
 
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 TaskStatus = Literal["queued", "parsing", "translating", "done", "failed"]
@@ -1033,6 +1033,77 @@ def get_task_image(task_id: str, filename: str) -> FileResponse:
     elif suf in {".jpg", ".jpeg"}:
         media = "image/jpeg"
     return FileResponse(path, media_type=media, filename=safe)
+
+
+from start_api.reading_chat import (
+    ReadingChatRequest,
+    ReadingChatResponse,
+    chat_with_deepseek,
+    load_deepseek_config,
+    stream_chat_with_deepseek,
+)
+from start_api.llm_config import (
+    LlmModelsQuery,
+    LlmModelsResult,
+    LlmSettingsPublic,
+    LlmSettingsUpdate,
+    list_remote_models,
+    public_llm_settings,
+    save_llm_settings,
+)
+
+
+@app.get("/api/v1/settings/llm", response_model=LlmSettingsPublic)
+def get_llm_settings() -> LlmSettingsPublic:
+    """OpenAI-compatible API settings (key masked)."""
+    return public_llm_settings()
+
+
+@app.put("/api/v1/settings/llm", response_model=LlmSettingsPublic)
+def put_llm_settings(body: LlmSettingsUpdate) -> LlmSettingsPublic:
+    """Save API key / base URL / model for translation + reading AI."""
+    try:
+        return save_llm_settings(body)
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"无法写入设置文件: {exc}") from exc
+
+
+@app.post("/api/v1/settings/llm/models", response_model=LlmModelsResult)
+def probe_llm_models(body: LlmModelsQuery) -> LlmModelsResult:
+    """List models from the provider via OpenAI-compatible GET /models."""
+    return list_remote_models(api_key=body.api_key, base_url=body.base_url)
+
+
+@app.post("/api/v1/reading/chat")
+def reading_chat(body: ReadingChatRequest) -> StreamingResponse:
+    """Reading-room Q&A — SSE stream (`text/event-stream`)."""
+    api_key, _, _ = load_deepseek_config()
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="未配置 AI API Key。请在「通用设置 → AI API」中填写后重试。",
+        )
+
+    return StreamingResponse(
+        stream_chat_with_deepseek(body),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.post("/api/v1/reading/chat/sync", response_model=ReadingChatResponse)
+def reading_chat_sync(body: ReadingChatRequest) -> ReadingChatResponse:
+    """Non-streaming fallback for the same payload."""
+    try:
+        return chat_with_deepseek(body)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"AI 调用失败: {exc}") from exc
 
 
 def main() -> None:

@@ -40,11 +40,21 @@ foreach ($port in $ports) {
     Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue |
       Select-Object -ExpandProperty OwningProcess -Unique
   )
-  if (-not $pids.Count) {
-    Write-Host "[ok]   :$port not listening" -ForegroundColor DarkGray
+  $live = @()
+  foreach ($procId in $pids) {
+    if (Get-Process -Id $procId -ErrorAction SilentlyContinue) {
+      $live += $procId
+    }
+  }
+  if (-not $live.Count) {
+    if ($pids.Count) {
+      Write-Host "[ok]   :$port only ghost Listen entries (no live process)" -ForegroundColor DarkGray
+    } else {
+      Write-Host "[ok]   :$port not listening" -ForegroundColor DarkGray
+    }
     continue
   }
-  foreach ($procId in $pids) {
+  foreach ($procId in $live) {
     Stop-PidSafe -ProcessId ([int]$procId) -Label ":$port"
   }
 }
