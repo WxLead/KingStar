@@ -1,24 +1,17 @@
-import { useNavigate } from 'react-router'
-import { useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
+import { Link, useNavigate } from 'react-router'
 import { motion } from 'framer-motion'
-import {
-  BookOpen,
-  Wrench,
-  FileText,
-  File,
-  FileCode,
-  FileImage,
-  FileType,
-  FileSpreadsheet,
-  Presentation,
-  Library,
-  NotebookPen,
-} from 'lucide-react'
+import { Library, ArrowRight, LayoutList, Clock3, BookMarked } from 'lucide-react'
 import ListPageHero, { MetaChip } from '@/features/layout/ListPageHero'
-import { exportNotesMarkdown, hasNotesContent } from '@/features/reading/notesStorage'
+import { BookCover, BookShelfRow, titleFromFilename } from '@/features/reading/bookCover'
+import { hasNotesContent } from '@/features/reading/notesStorage'
+import {
+  formatOpenedAt,
+  listRecentReads,
+} from '@/features/reading/readingRecent'
 import { useUploads } from '@/features/uploads/UploadsContext'
-import { resolveStage, stageMeta } from '@/features/uploads/pipelineStage'
-import { formatBytes, type UploadItem } from '@/services/api'
+import { resolveStage } from '@/features/uploads/pipelineStage'
+import type { UploadItem } from '@/services/api'
 
 function canEnterReading(item: UploadItem): boolean {
   if (!item.last_task_id) return false
@@ -26,218 +19,167 @@ function canEnterReading(item: UploadItem): boolean {
   return stage === 'parsed' || stage === 'completed' || stage === 'failed' || stage === 'translating'
 }
 
-function fileIconMeta(filename: string): { icon: React.ReactNode; bg: string } {
-  const ext = filename.split('.').pop()?.toLowerCase() ?? ''
-  switch (ext) {
-    case 'pdf':
-      return {
-        icon: <FileText size={18} strokeWidth={2.1} className="text-[#e23f2b]" />,
-        bg: 'bg-[#fef2f2]',
-      }
-    case 'png':
-    case 'jpg':
-    case 'jpeg':
-    case 'gif':
-    case 'webp':
-    case 'bmp':
-      return {
-        icon: <FileImage size={18} strokeWidth={2.1} className="text-[#22a06b]" />,
-        bg: 'bg-[#ecfdf5]',
-      }
-    case 'ppt':
-    case 'pptx':
-      return {
-        icon: <Presentation size={18} strokeWidth={2.1} className="text-[#e8801a]" />,
-        bg: 'bg-[#fff7ed]',
-      }
-    case 'doc':
-    case 'docx':
-      return {
-        icon: <FileType size={18} strokeWidth={2.1} className="text-[#2b6cd4]" />,
-        bg: 'bg-[#eff6ff]',
-      }
-    case 'xls':
-    case 'xlsx':
-    case 'csv':
-      return {
-        icon: <FileSpreadsheet size={18} strokeWidth={2.1} className="text-[#059669]" />,
-        bg: 'bg-[#ecfdf5]',
-      }
-    case 'md':
-    case 'markdown':
-      return {
-        icon: <FileCode size={18} strokeWidth={2.1} className="text-[#7c3aed]" />,
-        bg: 'bg-[#f5f3ff]',
-      }
-    default:
-      return {
-        icon: <File size={18} strokeWidth={2.1} className="text-[#6a70a0]" />,
-        bg: 'bg-[#f0f1f8]',
-      }
-  }
+function ShelfCard({ item, onOpen }: { item: UploadItem; onOpen: () => void }) {
+  const title = titleFromFilename(item.filename)
+  const hasNotes = hasNotesContent(item.upload_id)
+  const hasZh = Boolean(item.has_zh)
+
+  return (
+    <motion.button
+      type="button"
+      layout
+      variants={{
+        hidden: { opacity: 0, y: 8 },
+        show: { opacity: 1, y: 0 },
+      }}
+      onClick={onOpen}
+      className="group flex flex-col text-left transition duration-200 hover:-translate-y-0.5"
+    >
+      <BookCover title={title} uploadId={item.upload_id} hasZh={hasZh} hasNotes={hasNotes} />
+      <div className="mt-1.5 min-w-0 px-0.5">
+        <h3 className="truncate text-[11px] font-semibold text-ink transition group-hover:text-[#4f46e5]">
+          {title}
+        </h3>
+        <p className="mt-px truncate text-[10px] text-[#9aa0b8]">
+          {hasZh ? '原文 · 译文' : '原文'}
+          {hasNotes ? ' · 笔记' : ''}
+        </p>
+      </div>
+    </motion.button>
+  )
 }
 
-function LibraryRow({ item }: { item: UploadItem }) {
-  const navigate = useNavigate()
-  const { setSelectedId } = useUploads()
-  const stage = resolveStage(item)
-  const status = stageMeta(stage)
-  const readable = canEnterReading(item)
-  const fileMeta = fileIconMeta(item.filename)
+function PaneHeader({
+  icon,
+  title,
+  count,
+  subtitle,
+  trailing,
+}: {
+  icon: ReactNode
+  title: string
+  count?: number
+  subtitle: string
+  trailing?: ReactNode
+}) {
+  return (
+    <div className="relative shrink-0 overflow-hidden border-b border-[#e4e6f2]">
+      <div
+        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white via-[#f4f5fc] to-[#eceef8]"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute -right-8 -top-10 h-24 w-24 rounded-full opacity-50 blur-2xl"
+        style={{ background: 'radial-gradient(circle, #cfd3f5 0%, transparent 70%)' }}
+        aria-hidden
+      />
+      <div className="relative flex min-h-[76px] items-center justify-between gap-3 px-4 py-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white text-[#4f46e5] shadow-[0_4px_12px_-6px_rgba(79,70,229,0.55)] ring-1 ring-[#e4e6f4]">
+              {icon}
+            </span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h2 className="truncate text-[15px] font-bold tracking-wide text-ink">{title}</h2>
+                {typeof count === 'number' ? (
+                  <span className="rounded-full bg-[#4f46e5]/10 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-[#4f46e5]">
+                    {count}
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-0.5 truncate text-[12px] text-[#9aa0b8]">{subtitle}</p>
+            </div>
+          </div>
+        </div>
+        {trailing ? <div className="shrink-0">{trailing}</div> : null}
+      </div>
+    </div>
+  )
+}
 
-  const openReading = () => {
-    if (!readable) return
+export default function LibraryPage() {
+  const navigate = useNavigate()
+  const { items, loading, error, setSelectedId } = useUploads()
+  const [shelfFilter, setShelfFilter] = useState<'all' | 'notes' | 'zh'>('all')
+
+  const readable = useMemo(() => items.filter(canEnterReading), [items])
+  const pending = useMemo(() => items.filter((i) => !canEnterReading(i)), [items])
+
+  const recentPairs = useMemo(() => {
+    const byId = new Map(readable.map((i) => [i.upload_id, i]))
+    return listRecentReads()
+      .map((r) => {
+        const item = byId.get(r.uploadId)
+        return item ? { item, openedAt: r.openedAt } : null
+      })
+      .filter(Boolean) as Array<{ item: UploadItem; openedAt: number }>
+  }, [readable])
+
+  const shelfItems = useMemo(() => {
+    let list = [...readable]
+    if (shelfFilter === 'notes') list = list.filter((i) => hasNotesContent(i.upload_id))
+    if (shelfFilter === 'zh') list = list.filter((i) => i.has_zh)
+    const recentRank = new Map(listRecentReads().map((r, idx) => [r.uploadId, idx]))
+    list.sort((a, b) => {
+      const ra = recentRank.has(a.upload_id) ? recentRank.get(a.upload_id)! : 999
+      const rb = recentRank.has(b.upload_id) ? recentRank.get(b.upload_id)! : 999
+      if (ra !== rb) return ra - rb
+      return a.filename.localeCompare(b.filename, 'zh')
+    })
+    return list
+  }, [readable, shelfFilter])
+
+  const openReading = (item: UploadItem) => {
     setSelectedId(item.upload_id)
     navigate(`/read/${item.upload_id}`)
   }
 
-  const openWorkspace = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    setSelectedId(item.upload_id)
-    navigate('/')
-  }
-
-  const onExportNotes = () => {
-    const ok = exportNotesMarkdown(item.upload_id, item.filename)
-    if (!ok) {
-      alert('暂无笔记可导出。请先在阅读室中写下笔记。')
-    }
-  }
-
-  const hasNotes = hasNotesContent(item.upload_id)
-
-  return (
-    <li
-      role={readable ? 'button' : undefined}
-      tabIndex={readable ? 0 : undefined}
-      onClick={openReading}
-      onKeyDown={(e) => {
-        if (!readable) return
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          openReading()
-        }
-      }}
-      className={`group grid grid-cols-[2.5rem_minmax(0,1fr)_5.5rem_auto] items-center gap-x-3 rounded-2xl border bg-white/90 px-4 py-3.5 backdrop-blur-sm transition ${
-        readable
-          ? 'cursor-pointer border-[#eceef6] hover:-translate-y-0.5 hover:border-[#d4d7f0] hover:shadow-[0_8px_24px_-12px_rgba(79,70,229,0.25)]'
-          : 'border-[#eceef6] opacity-75'
-      }`}
-    >
-      <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${fileMeta.bg}`}>
-        {fileMeta.icon}
-      </span>
-
-      <div className="min-w-0">
-        <p className="truncate text-[15px] font-semibold text-ink">{item.filename}</p>
-        <p className="mt-0.5 truncate text-[12px] text-[#9aa0b8]">{formatBytes(item.size)}</p>
-      </div>
-
-      <span
-        className={`inline-flex h-6 w-full items-center justify-center rounded-md text-[11px] font-semibold ${status.badge}`}
-      >
-        {status.label}
-      </span>
-
-      <div className="flex items-center justify-end gap-0.5" onClick={(e) => e.stopPropagation()}>
-        <button
-          type="button"
-          title={readable ? '进入阅读室' : '请先完成版面分析'}
-          disabled={!readable}
-          onClick={openReading}
-          className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-[#4f46e5] transition hover:bg-[#eef0fb] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
-        >
-          <BookOpen size={13} />
-          阅读
-        </button>
-        <button
-          type="button"
-          title={hasNotes ? '导出笔记为 Markdown' : '暂无笔记'}
-          disabled={!hasNotes}
-          onClick={onExportNotes}
-          className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-[#4f46e5] transition hover:bg-[#eef0fb] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
-        >
-          <NotebookPen size={13} />
-          导出笔记
-        </button>
-        <button
-          type="button"
-          title="打开工作区"
-          onClick={openWorkspace}
-          className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-[#6a70a0] transition hover:bg-[#f0f1f8]"
-        >
-          <Wrench size={13} />
-          工作区
-        </button>
-      </div>
-    </li>
-  )
-}
-
-type LibraryFilter = 'readable' | 'pending' | 'all'
-
-export default function LibraryPage() {
-  const navigate = useNavigate()
-  const { items, loading, error } = useUploads()
-  const [filter, setFilter] = useState<LibraryFilter>('all')
-
-  const readable = items.filter(canEnterReading)
-  const others = items.filter((i) => !canEnterReading(i))
-  const visible =
-    filter === 'readable' ? readable : filter === 'pending' ? others : items
+  const showDual = !loading && !error && readable.length > 0
+  const showGlobalEmpty = !loading && !error && items.length === 0
+  const showPendingOnly = !loading && !error && items.length > 0 && readable.length === 0
 
   return (
     <div className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-[#e8e9f4] bg-[#f8f8fd]">
       <ListPageHero
-        title="文献阅读"
-        subtitle="沉浸阅读原文、解析稿与译文，从书架直接进入阅读室。"
-        meta={
-          !loading && items.length > 0 ? (
-            <>
-              <MetaChip
-                label="全部"
-                value={items.length}
-                tone="neutral"
-                active={filter === 'all'}
-                onClick={() => setFilter('all')}
-              />
-              <MetaChip
-                label="可阅"
-                value={readable.length}
-                tone="accent"
-                active={filter === 'readable'}
-                onClick={() => setFilter('readable')}
-              />
-              <MetaChip
-                label="未就绪"
-                value={others.length}
-                tone="muted"
-                active={filter === 'pending'}
-                onClick={() => setFilter('pending')}
-              />
-            </>
-          ) : undefined
-        }
+        title="书架"
+        subtitle="左侧继续上次阅读，右侧浏览全部文献。点封面进入阅读室。"
         action={
           <button
             type="button"
-            onClick={() => navigate('/')}
-            className="rounded-xl bg-[#4f46e5] px-4 py-2 text-[13px] font-bold text-white shadow-sm transition hover:opacity-95"
+            onClick={() => navigate('/tasks')}
+            className="group relative inline-flex shrink-0 items-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-br from-[#4f46e5] to-[#6366f1] px-3.5 py-2 text-[13px] font-semibold text-white shadow-[0_8px_20px_-8px_rgba(79,70,229,0.7)] transition duration-200 hover:-translate-y-0.5 hover:from-[#4338ca] hover:to-[#4f46e5] hover:shadow-[0_12px_26px_-10px_rgba(79,70,229,0.8)] active:translate-y-0"
           >
-            去解析新文献
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.28),transparent_50%)]"
+            />
+            <LayoutList size={15} strokeWidth={2.5} className="relative shrink-0" />
+            <span className="relative tracking-wide">任务管理</span>
           </button>
         }
       />
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-        {loading && <p className="px-2 text-[14px] text-[#9aa0b8]">加载中…</p>}
-        {error && <p className="px-2 text-[14px] text-[#b45309]">{error}</p>}
+      <div className="relative min-h-0 flex-1">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.35]"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 18% 12%, #e4e7fb 0%, transparent 42%), radial-gradient(circle at 88% 70%, #ebe4f6 0%, transparent 36%)',
+          }}
+          aria-hidden
+        />
 
-        {!loading && !error && items.length === 0 && (
+        {loading && (
+          <p className="relative px-6 py-5 text-[14px] text-[#9aa0b8]">整理书架…</p>
+        )}
+        {error && <p className="relative px-6 py-5 text-[14px] text-[#b45309]">{error}</p>}
+
+        {showGlobalEmpty && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mx-auto flex max-w-md flex-col items-center px-6 py-16 text-center"
+            className="relative mx-auto flex max-w-md flex-col items-center px-6 py-16 text-center"
           >
             <motion.div
               animate={{ y: [0, -5, 0] }}
@@ -248,7 +190,7 @@ export default function LibraryPage() {
             </motion.div>
             <p className="mt-5 text-[16px] font-semibold text-ink">书架还是空的</p>
             <p className="mt-1.5 text-[14px] leading-relaxed text-[#9aa0b8]">
-              先在工作区上传并完成版面分析，文献会出现在这里。
+              先在工作区上传并完成版面分析，可阅读的文献会出现在这里。
             </p>
             <button
               type="button"
@@ -260,34 +202,165 @@ export default function LibraryPage() {
           </motion.div>
         )}
 
-        {!loading && items.length > 0 && visible.length === 0 && (
-          <p className="px-2 py-10 text-center text-[14px] text-[#9aa0b8]">
-            {filter === 'readable' ? '暂无可阅读文献' : filter === 'pending' ? '没有未就绪的文献' : '暂无文献'}
-          </p>
+        {showPendingOnly && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="relative mx-auto max-w-lg px-4 py-14 text-center"
+          >
+            <p className="text-[16px] font-semibold text-ink">还没有可上架的文献</p>
+            <p className="mt-2 text-[14px] leading-relaxed text-[#9aa0b8]">
+              有 {pending.length} 篇仍在解析或等待处理。去任务管理跟进进度后，即可在此阅读。
+            </p>
+            <Link
+              to="/tasks"
+              className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-[#4f46e5] px-4 py-2 text-[13px] font-semibold text-white"
+            >
+              打开任务管理
+              <ArrowRight size={14} />
+            </Link>
+          </motion.div>
         )}
 
-        {!loading && visible.length > 0 && (
-          <motion.ul
-            initial="hidden"
-            animate="show"
-            variants={{
-              hidden: {},
-              show: { transition: { staggerChildren: 0.04 } },
-            }}
-            className="space-y-2.5"
-          >
-            {visible.map((item) => (
-              <motion.div
-                key={item.upload_id}
-                variants={{
-                  hidden: { opacity: 0, y: 8 },
-                  show: { opacity: 1, y: 0 },
-                }}
-              >
-                <LibraryRow item={item} />
-              </motion.div>
-            ))}
-          </motion.ul>
+        {showDual && (
+          <div className="relative flex h-full min-h-0 flex-col">
+            <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-2 md:overflow-hidden">
+              {/* Left: recent */}
+              <aside className="flex max-h-[42vh] min-h-0 flex-col overflow-hidden border-[#e8e9f4] md:max-h-none md:border-r">
+                <PaneHeader
+                  icon={<Clock3 size={15} />}
+                  title="最近阅读"
+                  count={recentPairs.length}
+                  subtitle={
+                    recentPairs.length > 0 ? '从这里继续上次打开的文献' : '打开文献后会出现在这里'
+                  }
+                />
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 [scrollbar-width:thin] [scrollbar-color:#c9cce4_transparent]">
+                  {recentPairs.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-[#dfe1f4] bg-white/40 px-4 py-10 text-center">
+                      <p className="text-[13px] font-medium text-[#6a70a0]">暂无最近阅读</p>
+                      <p className="mt-1 text-[12px] leading-relaxed text-[#9aa0b8]">
+                        从右侧书架点开一篇，下次就能从这里继续。
+                      </p>
+                    </div>
+                  ) : (
+                    <motion.div
+                      initial="hidden"
+                      animate="show"
+                      variants={{
+                        hidden: {},
+                        show: { transition: { staggerChildren: 0.04 } },
+                      }}
+                      className="flex flex-col gap-2"
+                    >
+                      {recentPairs.map(({ item, openedAt }) => {
+                        const title = titleFromFilename(item.filename)
+                        const hasNotes = hasNotesContent(item.upload_id)
+                        return (
+                          <BookShelfRow
+                            key={item.upload_id}
+                            title={title}
+                            uploadId={item.upload_id}
+                            hasZh={item.has_zh}
+                            subtitle={formatOpenedAt(openedAt)}
+                            meta={`${item.has_zh ? '原文 · 译文' : '原文'}${hasNotes ? ' · 笔记' : ''}`}
+                            onClick={() => openReading(item)}
+                          />
+                        )
+                      })}
+                    </motion.div>
+                  )}
+                </div>
+              </aside>
+
+              {/* Right: full shelf */}
+              <section className="flex min-h-0 min-w-0 flex-col overflow-hidden border-t border-[#e8e9f4] md:border-t-0">
+                <PaneHeader
+                  icon={<BookMarked size={15} />}
+                  title="全部书架"
+                  count={readable.length}
+                  subtitle={
+                    shelfFilter === 'notes'
+                      ? '仅显示含笔记的文献'
+                      : shelfFilter === 'zh'
+                        ? '仅显示已有译文的文献'
+                        : '点击封面进入阅读室'
+                  }
+                  trailing={
+                    <div className="flex flex-wrap justify-end gap-1">
+                      <MetaChip
+                        label="全部"
+                        value={readable.length}
+                        tone="neutral"
+                        active={shelfFilter === 'all'}
+                        onClick={() => setShelfFilter('all')}
+                      />
+                      <MetaChip
+                        label="笔记"
+                        value={readable.filter((i) => hasNotesContent(i.upload_id)).length}
+                        tone="accent"
+                        active={shelfFilter === 'notes'}
+                        onClick={() => setShelfFilter('notes')}
+                      />
+                      <MetaChip
+                        label="译文"
+                        value={readable.filter((i) => i.has_zh).length}
+                        tone="muted"
+                        active={shelfFilter === 'zh'}
+                        onClick={() => setShelfFilter('zh')}
+                      />
+                    </div>
+                  }
+                />
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 [scrollbar-width:thin] [scrollbar-color:#c9cce4_transparent]">
+                  {shelfItems.length === 0 ? (
+                    <p className="py-16 text-center text-[14px] text-[#9aa0b8]">没有符合筛选的文献</p>
+                  ) : (
+                    <div className="relative rounded-2xl border border-[#e6e8f4] bg-gradient-to-b from-white/75 to-[#f0f1fa]/45 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
+                      <div
+                        className="pointer-events-none absolute inset-x-5 bottom-2.5 h-1.5 rounded-full bg-gradient-to-r from-transparent via-[#d4d7ec]/75 to-transparent blur-[1px]"
+                        aria-hidden
+                      />
+                      <motion.div
+                        initial="hidden"
+                        animate="show"
+                        variants={{
+                          hidden: {},
+                          show: { transition: { staggerChildren: 0.03 } },
+                        }}
+                        className="relative grid grid-cols-4 gap-x-2.5 gap-y-4 sm:grid-cols-5 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7"
+                      >
+                        {shelfItems.map((item) => (
+                          <ShelfCard
+                            key={item.upload_id}
+                            item={item}
+                            onOpen={() => openReading(item)}
+                          />
+                        ))}
+                      </motion.div>
+                    </div>
+                  )}
+                </div>
+              </section>
+            </div>
+
+            {pending.length > 0 ? (
+              <div className="shrink-0 border-t border-[#e8e9f4] bg-white/70 px-4 py-2.5 backdrop-blur-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[13px] text-[#6a70a0]">
+                    还有 <span className="font-semibold text-ink">{pending.length}</span> 篇尚未上架
+                  </p>
+                  <Link
+                    to="/tasks"
+                    className="inline-flex items-center gap-1 text-[13px] font-semibold text-[#4f46e5] hover:underline"
+                  >
+                    去任务管理
+                    <ArrowRight size={14} />
+                  </Link>
+                </div>
+              </div>
+            ) : null}
+          </div>
         )}
       </div>
     </div>

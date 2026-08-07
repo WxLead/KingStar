@@ -252,9 +252,11 @@ function ColorPicker({
 export function NotesPane({
   uploadId,
   filename = 'notes',
+  onCollapse,
 }: {
   uploadId: string
   filename?: string
+  onCollapse?: () => void
 }) {
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -426,6 +428,7 @@ export function NotesPane({
     <div className="flex h-full min-h-0 flex-col bg-[#fafbfe]">
       <ReadingPaneHeader
         title="笔记"
+        onCollapse={onCollapse}
         meta={
           savedAt
             ? `已保存 ${new Date(savedAt).toLocaleTimeString('zh-CN', {
@@ -437,7 +440,6 @@ export function NotesPane({
         actions={
           <button
             type="button"
-            title="导出为 Markdown"
             disabled={!editor}
             onClick={() => {
               if (!editor) return

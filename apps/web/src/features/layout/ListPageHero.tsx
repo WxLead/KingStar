@@ -1,4 +1,4 @@
-/** Shared atmospheric header for list pages (文献阅读 / 任务管理). */
+/** Shared atmospheric header for list pages (书架 / 任务管理). */
 export default function ListPageHero({
   title,
   subtitle,

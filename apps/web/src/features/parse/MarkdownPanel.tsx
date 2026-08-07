@@ -73,7 +73,7 @@ function ToolBtn({
   return (
     <button
       type="button"
-      title={title || label}
+      title={title}
       disabled={disabled}
       onClick={onClick}
       className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold text-[#4f46e5] transition hover:bg-[#eef0fb] disabled:cursor-default disabled:opacity-50"
@@ -193,7 +193,6 @@ export default function MarkdownPanel({
         <div className="flex flex-wrap items-center justify-end gap-0.5">
           <ToolBtn
             label={copied ? '已复制' : '复制'}
-            title="复制当前 Markdown 源码"
             onClick={() => void copySource()}
             disabled={empty || busy}
           >
@@ -205,7 +204,6 @@ export default function MarkdownPanel({
               <button
                 type="button"
                 disabled={empty || busy}
-                title="导出 Markdown 或 PDF"
                 className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold text-[#4f46e5] transition hover:bg-[#eef0fb] disabled:cursor-default disabled:opacity-50"
               >
                 {exportingPdf ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
@@ -235,7 +233,6 @@ export default function MarkdownPanel({
 
           <ToolBtn
             label={translating ? '翻译中' : '翻译'}
-            title="英译中"
             onClick={() => void onTranslate?.()}
             disabled={!onTranslate || busy || (!markdown.trim() && segments.length === 0)}
           >

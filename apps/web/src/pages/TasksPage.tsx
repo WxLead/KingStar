@@ -16,6 +16,7 @@ import {
   LayoutList,
   Download,
   ChevronDown,
+  Plus,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -119,7 +120,7 @@ function ActionBtn({
   return (
     <button
       type="button"
-      title={title || label}
+      title={title}
       disabled={disabled}
       onClick={(e) => {
         e.stopPropagation()
@@ -260,9 +261,7 @@ function TaskRow({ item }: { item: UploadItem }) {
         <ActionBtn
           label={stage === 'translating' ? '翻译中' : '翻译'}
           title={
-            stage === 'unprocessed'
-              ? '未解析时将自动先分析再翻译'
-              : '翻译已解析文档（后台）'
+            stage === 'unprocessed' ? '未解析时将自动先分析再翻译' : undefined
           }
           disabled={!canTranslate || rowBusy}
           onClick={() => void onTranslate()}
@@ -275,7 +274,7 @@ function TaskRow({ item }: { item: UploadItem }) {
         </ActionBtn>
         <ActionBtn
           label="阅读"
-          title={canRead ? '进入阅读室' : '请先完成版面分析'}
+          title={canRead ? undefined : '请先完成版面分析'}
           disabled={!canRead}
           onClick={openReading}
         >
@@ -287,7 +286,7 @@ function TaskRow({ item }: { item: UploadItem }) {
             <button
               type="button"
               disabled={!canExportMd || exporting || busy}
-              title={canExportMd ? '导出 Markdown 或 PDF' : '请先完成版面分析'}
+              title={canExportMd ? undefined : '请先完成版面分析'}
               className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-[#4f46e5] transition hover:bg-[#eef0fb] disabled:cursor-not-allowed disabled:opacity-40"
             >
               {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
@@ -399,9 +398,14 @@ export default function TasksPage() {
           <button
             type="button"
             onClick={() => navigate('/')}
-            className="rounded-xl bg-[#4f46e5] px-4 py-2 text-[13px] font-bold text-white shadow-sm transition hover:opacity-95"
+            className="group relative inline-flex shrink-0 items-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-br from-[#4f46e5] to-[#6366f1] px-3.5 py-2 text-[13px] font-semibold text-white shadow-[0_8px_20px_-8px_rgba(79,70,229,0.7)] transition duration-200 hover:-translate-y-0.5 hover:from-[#4338ca] hover:to-[#4f46e5] hover:shadow-[0_12px_26px_-10px_rgba(79,70,229,0.8)] active:translate-y-0"
           >
-            上传新文件
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.28),transparent_50%)]"
+            />
+            <Plus size={15} strokeWidth={2.5} className="relative shrink-0" />
+            <span className="relative tracking-wide">新解析</span>
           </button>
         }
       />

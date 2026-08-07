@@ -1,33 +1,32 @@
-import { NavLink, useNavigate } from 'react-router'
+import { useMemo, useState } from 'react'
+import { NavLink, useLocation, useNavigate } from 'react-router'
 import { motion } from 'framer-motion'
 import {
   Plus,
   LayoutList,
-  BookOpen,
+  Library,
   Star,
-  FileText,
-  File,
-  FileCode,
-  FileImage,
-  FileType,
-  FileSpreadsheet,
-  Presentation,
-  MoreHorizontal,
-  Trash2,
   PanelLeftClose,
   Settings,
+  Clock3,
+  FileSearch,
 } from 'lucide-react'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { useSidebarChrome } from '@/features/layout/SidebarChrome'
+import { BookShelfRow, titleFromFilename } from '@/features/reading/bookCover'
+import { hasNotesContent } from '@/features/reading/notesStorage'
+import {
+  formatOpenedAt,
+  listRecentReads,
+  removeRecentRead,
+} from '@/features/reading/readingRecent'
+import {
+  hideParseRecord,
+  listHiddenParseIds,
+} from '@/features/reading/sidebarParseRecent'
 import { formatShortcut, useKeyboardShortcuts } from '@/features/settings/keyboardShortcuts'
 import { useUploads } from '@/features/uploads/UploadsContext'
-import { resolveStage, stageMeta } from '@/features/uploads/pipelineStage'
-import type { UploadItem } from '@/services/api'
+import { isStageBusy, resolveStage, stageMeta } from '@/features/uploads/pipelineStage'
+import { formatUploadTime, type UploadItem } from '@/services/api'
 
 function StarTLogo() {
   return (
@@ -106,164 +105,43 @@ function NavItem({
   )
 }
 
-function fileIconMeta(filename: string): {
-  icon: React.ReactNode
-  bg: string
-} {
-  const ext = filename.split('.').pop()?.toLowerCase() ?? ''
-  switch (ext) {
-    case 'pdf':
-      return {
-        icon: <FileText size={18} strokeWidth={2.1} className="text-[#e23f2b]" />,
-        bg: 'bg-[#fef2f2]',
-      }
-    case 'png':
-    case 'jpg':
-    case 'jpeg':
-    case 'gif':
-    case 'webp':
-    case 'bmp':
-      return {
-        icon: <FileImage size={18} strokeWidth={2.1} className="text-[#22a06b]" />,
-        bg: 'bg-[#ecfdf5]',
-      }
-    case 'ppt':
-    case 'pptx':
-      return {
-        icon: <Presentation size={18} strokeWidth={2.1} className="text-[#e8801a]" />,
-        bg: 'bg-[#fff7ed]',
-      }
-    case 'doc':
-    case 'docx':
-      return {
-        icon: <FileType size={18} strokeWidth={2.1} className="text-[#2b6cd4]" />,
-        bg: 'bg-[#eff6ff]',
-      }
-    case 'xls':
-    case 'xlsx':
-    case 'csv':
-      return {
-        icon: <FileSpreadsheet size={18} strokeWidth={2.1} className="text-[#059669]" />,
-        bg: 'bg-[#ecfdf5]',
-      }
-    case 'md':
-    case 'markdown':
-      return {
-        icon: <FileCode size={18} strokeWidth={2.1} className="text-[#7c3aed]" />,
-        bg: 'bg-[#f5f3ff]',
-      }
-    case 'txt':
-      return {
-        icon: <FileText size={18} strokeWidth={2.1} className="text-[#6b7280]" />,
-        bg: 'bg-[#f3f4f6]',
-      }
-    default:
-      return {
-        icon: <File size={18} strokeWidth={2.1} className="text-[#6a70a0]" />,
-        bg: 'bg-[#f0f1f8]',
-      }
-  }
-}
-
 function canEnterReading(item: UploadItem): boolean {
   if (!item.last_task_id) return false
   const stage = resolveStage(item)
   return stage === 'parsed' || stage === 'completed' || stage === 'failed' || stage === 'translating'
 }
 
-function UploadRow({ item }: { item: UploadItem }) {
-  const navigate = useNavigate()
-  const { selectedId, setSelectedId, busyId, remove } = useUploads()
-  const busy = busyId === item.upload_id
-  const selected = selectedId === item.upload_id
-  const stage = resolveStage(item)
-  const status = stageMeta(stage)
-  const fileMeta = fileIconMeta(item.filename)
-  const readable = canEnterReading(item)
-
-  const openWorkspace = () => {
-    setSelectedId(item.upload_id)
-    navigate('/')
+function stageDotClass(stage: ReturnType<typeof resolveStage>): string {
+  switch (stage) {
+    case 'unprocessed':
+    case 'failed':
+      return 'bg-[#dc2626]'
+    case 'parsing':
+    case 'translating':
+      return 'bg-[#4f46e5]'
+    case 'parsed':
+      return 'bg-[#2563eb]'
+    case 'completed':
+      return 'bg-[#059669]'
   }
+}
 
-  const openReading = () => {
-    setSelectedId(item.upload_id)
-    navigate(`/read/${item.upload_id}`)
-  }
-
-  const onDelete = async () => {
-    if (!confirm(`删除「${item.filename}」？`)) return
-    try {
-      await remove(item.upload_id)
-    } catch (err) {
-      alert(err instanceof Error ? err.message : '删除失败')
-    }
-  }
-
+function SectionLabel({
+  icon,
+  label,
+  count,
+}: {
+  icon: React.ReactNode
+  label: string
+  count?: number
+}) {
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={openWorkspace}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          openWorkspace()
-        }
-      }}
-      className={`group flex cursor-pointer items-center gap-2 rounded-xl px-2 py-2 transition-colors ${
-        selected ? 'bg-white shadow-sm ring-1 ring-[#dfe1f4]' : 'hover:bg-white/70'
-      }`}
-    >
-      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${fileMeta.bg}`}>
-        {fileMeta.icon}
-      </span>
-
-      <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold leading-5 text-ink">
-        {item.filename}
-      </span>
-
-      <div className="ml-auto flex shrink-0 items-center justify-end gap-1.5">
-        <span
-          className={`inline-flex h-6 items-center justify-center rounded-md px-2 text-[11px] font-semibold tracking-wide ${status.badge}`}
-        >
-          {status.label}
-        </span>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              title="更多操作"
-              onClick={(e) => e.stopPropagation()}
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-[#4f46e5] transition hover:bg-[#eef0fb]"
-            >
-              <MoreHorizontal size={15} />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            className="min-w-[8.5rem]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <DropdownMenuItem
-              className="gap-2 text-[13px]"
-              disabled={!readable}
-              onSelect={() => openReading()}
-            >
-              <BookOpen size={14} className="text-[#4f46e5]" />
-              阅读
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="gap-2 text-[13px] text-[#dc2626] focus:text-[#dc2626]"
-              disabled={busy}
-              onSelect={() => void onDelete()}
-            >
-              <Trash2 size={14} />
-              删除
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+    <div className="mb-1.5 flex items-center gap-1.5 px-1">
+      <span className="text-[#8b91b3]">{icon}</span>
+      <p className="text-[12px] font-bold tracking-wider text-[#9aa0b8]">{label}</p>
+      {typeof count === 'number' ? (
+        <span className="text-[11px] font-semibold tabular-nums text-[#b0b4c8]">({count})</span>
+      ) : null}
     </div>
   )
 }
@@ -277,11 +155,63 @@ const itemAnim = {
   show: { opacity: 1, x: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] as const } },
 }
 
+const RECENT_PARSE_LIMIT = 6
+const RECENT_READ_LIMIT = 6
+
 export default function Sidebar() {
-  const { items, loading, error, setSelectedId } = useUploads()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { items, loading, error, selectedId, setSelectedId } = useUploads()
   const { setOpen } = useSidebarChrome()
   const shortcuts = useKeyboardShortcuts()
   const toggleLabel = formatShortcut(shortcuts.toggleSidebar)
+  const [listTick, setListTick] = useState(0)
+
+  const recentParses = useMemo(() => {
+    const hidden = listHiddenParseIds()
+    return [...items]
+      .filter((i) => !hidden.has(i.upload_id))
+      .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+      .slice(0, RECENT_PARSE_LIMIT)
+  }, [items, listTick])
+
+  const recentReads = useMemo(() => {
+    const byId = new Map(items.map((i) => [i.upload_id, i]))
+    return listRecentReads()
+      .map((r) => {
+        const item = byId.get(r.uploadId)
+        return item && canEnterReading(item) ? { item, openedAt: r.openedAt } : null
+      })
+      .filter(Boolean)
+      .slice(0, RECENT_READ_LIMIT) as Array<{ item: UploadItem; openedAt: number }>
+  }, [items, location.pathname, listTick])
+
+  const dismissParse = (uploadId: string) => {
+    hideParseRecord(uploadId)
+    setListTick((n) => n + 1)
+  }
+
+  const dismissRead = (uploadId: string) => {
+    removeRecentRead(uploadId)
+    setListTick((n) => n + 1)
+  }
+
+  const openWorkspace = (item: UploadItem) => {
+    setSelectedId(item.upload_id)
+    navigate('/')
+  }
+
+  const openReading = (item: UploadItem) => {
+    setSelectedId(item.upload_id)
+    navigate(`/read/${item.upload_id}`)
+  }
+
+  const bookMeta = (item: UploadItem) => {
+    const hasNotes = hasNotesContent(item.upload_id)
+    const parts = [item.has_zh ? '原文 · 译文' : '原文']
+    if (hasNotes) parts.push('笔记')
+    return parts.join(' · ')
+  }
 
   return (
     <aside className="sticky top-0 flex h-screen w-[340px] shrink-0 flex-col self-start bg-[#f5f6fb] px-4 pb-6 pt-7">
@@ -308,7 +238,7 @@ export default function Sidebar() {
             onNavigate={() => setSelectedId(null)}
           />
           <NavItem to="/tasks" icon={<LayoutList size={22} />} label="任务管理" />
-          <NavItem to="/library" icon={<BookOpen size={22} />} label="文献阅读" />
+          <NavItem to="/library" icon={<Library size={22} />} label="我的书架" />
           <NavItem to="/favorites" icon={<Star size={22} />} label="我的收藏" />
           <NavItem to="/settings" icon={<Settings size={22} />} label="通用设置" />
         </motion.nav>
@@ -316,28 +246,89 @@ export default function Sidebar() {
         <motion.div variants={itemAnim} className="mx-1 my-4 border-t border-[#e4e6f0]" />
 
         <motion.div variants={itemAnim} className="flex min-h-0 flex-1 flex-col">
-          <p className="mb-2 px-3 text-[14px] font-bold tracking-wider text-[#9aa0b8]">
-            已上传文件
-            {!loading && <span className="ml-1 font-semibold text-[#6a70a0]">({items.length})</span>}
-          </p>
-
-          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
-            {loading && <p className="px-3 text-[13px] text-[#9aa0b8]">加载中…</p>}
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin] [scrollbar-color:#c9cce4_transparent]">
+            {loading && <p className="px-2 text-[13px] text-[#9aa0b8]">加载中…</p>}
             {error && (
-              <p className="px-3 text-[13px] leading-relaxed text-[#b45309]">
+              <p className="px-2 text-[13px] leading-relaxed text-[#b45309]">
                 {error.includes('Failed') || error.includes('fetch')
                   ? '无法连接后端，请先启动 services/api'
                   : error}
               </p>
             )}
-            {!loading && !error && items.length === 0 && (
-              <p className="px-3 text-[13px] leading-relaxed text-[#9aa0b8]">
-                暂无文件。在右侧上传后会出现在这里。
-              </p>
+
+            {!loading && !error && (
+              <>
+                <section>
+                  <SectionLabel
+                    icon={<FileSearch size={12} />}
+                    label="最近解析"
+                    count={recentParses.length}
+                  />
+                  {recentParses.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-[#e4e6f0] bg-white/40 px-3 py-4 text-[12px] leading-relaxed text-[#9aa0b8]">
+                      暂无解析记录。上传文件后会出现在这里。
+                    </p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {recentParses.map((item) => {
+                        const stage = resolveStage(item)
+                        const meta = stageMeta(stage)
+                        return (
+                          <BookShelfRow
+                            key={`parse-${item.upload_id}`}
+                            title={titleFromFilename(item.filename)}
+                            uploadId={item.upload_id}
+                            hasZh={item.has_zh}
+                            subtitle={formatUploadTime(item.created_at)}
+                            status={{
+                              label: meta.label,
+                              className: meta.badge,
+                              busy: isStageBusy(stage),
+                              dotClassName: stageDotClass(stage),
+                            }}
+                            selected={selectedId === item.upload_id && location.pathname === '/'}
+                            onClick={() => openWorkspace(item)}
+                            onDismiss={() => dismissParse(item.upload_id)}
+                          />
+                        )
+                      })}
+                    </div>
+                  )}
+                </section>
+
+                <section>
+                  <SectionLabel
+                    icon={<Clock3 size={12} />}
+                    label="最近阅读"
+                    count={recentReads.length}
+                  />
+                  {recentReads.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-[#e4e6f0] bg-white/40 px-3 py-4 text-[12px] leading-relaxed text-[#9aa0b8]">
+                      暂无阅读记录。打开书架中的文献后会出现在这里。
+                    </p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {recentReads.map(({ item, openedAt }) => (
+                        <BookShelfRow
+                          key={`read-${item.upload_id}`}
+                          title={titleFromFilename(item.filename)}
+                          uploadId={item.upload_id}
+                          hasZh={item.has_zh}
+                          subtitle={formatOpenedAt(openedAt)}
+                          meta={bookMeta(item)}
+                          selected={
+                            selectedId === item.upload_id &&
+                            location.pathname.startsWith('/read/')
+                          }
+                          onClick={() => openReading(item)}
+                          onDismiss={() => dismissRead(item.upload_id)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </section>
+              </>
             )}
-            {items.map((f) => (
-              <UploadRow key={f.upload_id} item={f} />
-            ))}
           </div>
         </motion.div>
       </motion.div>

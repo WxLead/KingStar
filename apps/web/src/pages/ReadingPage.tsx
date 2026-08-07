@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { useUploads } from '@/features/uploads/UploadsContext'
 import ReadingRoom from '@/features/reading/ReadingRoom'
+import { touchRecentRead } from '@/features/reading/readingRecent'
 
 export default function ReadingPage() {
   const { uploadId } = useParams<{ uploadId: string }>()
@@ -15,6 +16,10 @@ export default function ReadingPage() {
       setSelectedId(uploadId)
     }
   }, [uploadId, selectedId, setSelectedId])
+
+  useEffect(() => {
+    if (item?.upload_id) touchRecentRead(item.upload_id)
+  }, [item?.upload_id])
 
   if (loading && !item) {
     return (
@@ -35,7 +40,7 @@ export default function ReadingPage() {
             onClick={() => navigate('/library')}
             className="rounded-xl bg-[#4f46e5] px-4 py-2 text-[13px] font-semibold text-white"
           >
-            回文献阅读
+            回书架
           </button>
           <Link to="/" className="rounded-xl border border-[#e4e6f0] bg-white px-4 py-2 text-[13px] font-semibold text-ink-soft">
             工作区

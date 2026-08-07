@@ -112,7 +112,6 @@ function PreviewToolbar({
             type="button"
             onClick={onBack}
             className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[12px] font-semibold text-[#4f46e5] transition hover:bg-[#f3f4fb]"
-            title="继续上传"
           >
             <Upload size={14} />
             上传
@@ -164,7 +163,7 @@ function PreviewToolbar({
               {editMode ? '编辑中' : '编辑框选'}
             </button>
           ) : (
-            <span className="inline-flex text-[#c5c9dc]" title="预览布局">
+            <span className="inline-flex text-[#c5c9dc]">
               <Columns2 size={17} />
             </span>
           )}

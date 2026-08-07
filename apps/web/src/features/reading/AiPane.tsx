@@ -15,7 +15,6 @@ import {
   ChevronUp,
   Quote,
   X,
-  MessageSquarePlus,
   Trash2,
   History,
   PanelLeftClose,
@@ -49,6 +48,13 @@ import {
 import { formatShortcut, useKeyboardShortcuts } from '@/features/settings/keyboardShortcuts'
 import { importMarkdownToNotes } from '@/features/reading/notesImportBridge'
 import {
+  AiSlashMenu,
+  filterAiSlashCommands,
+  matchAiSlashCommand,
+  parseAiSlashDraft,
+  type AiSlashCommand,
+} from '@/features/reading/aiSlashCommands'
+import {
   readingChatStream,
   type ReadingChatMessage,
   type ReadingChatUsage,
@@ -78,6 +84,7 @@ type AiPaneProps = {
   filename: string
   markdown?: string
   zhMarkdown?: string | null
+  onCollapse?: () => void
 }
 
 function sessionToMsgs(session: AiChatSession): ChatMsg[] {
@@ -212,7 +219,6 @@ function BubbleActions({
     <div className="mt-2 flex items-center gap-0.5 border-t border-[#eceef6] pt-1.5">
       <button
         type="button"
-        title={collapsed ? '展开' : '折叠'}
         onClick={onToggle}
         className="flex h-7 items-center gap-1 rounded-md px-1.5 text-[11px] text-[#6a70a0] transition hover:bg-[#f3f4fb] hover:text-ink"
       >
@@ -221,7 +227,6 @@ function BubbleActions({
       </button>
       <button
         type="button"
-        title="复制"
         onClick={() => void copy()}
         className="flex h-7 items-center gap-1 rounded-md px-1.5 text-[11px] text-[#6a70a0] transition hover:bg-[#f3f4fb] hover:text-ink"
       >
@@ -230,7 +235,6 @@ function BubbleActions({
       </button>
       <button
         type="button"
-        title="导入到笔记（高亮块）"
         onClick={toNotes}
         className="flex h-7 items-center gap-1 rounded-md px-1.5 text-[11px] text-[#6a70a0] transition hover:bg-[#f3f4fb] hover:text-ink"
       >
@@ -269,6 +273,7 @@ export function AiPane({
   filename,
   markdown = '',
   zhMarkdown = null,
+  onCollapse,
 }: AiPaneProps) {
   const boot = useMemo(() => loadAiChatStore(uploadId, filename), [uploadId, filename])
   const [store, setStore] = useState<AiChatStore>(boot)
@@ -276,6 +281,7 @@ export function AiPane({
   const [quote, setQuote] = useState<AiQuotePayload | null>(null)
   const [busy, setBusy] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [slashIndex, setSlashIndex] = useState(0)
 
   const active = getActiveSession(store)
   const [msgs, setMsgs] = useState<ChatMsg[]>(() => sessionToMsgs(active))
@@ -283,6 +289,7 @@ export function AiPane({
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const composerBoxRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef(0)
   const abortCtrlRef = useRef<AbortController | null>(null)
   const paperDigestRef = useRef(active.paperDigest)
@@ -395,6 +402,7 @@ export function AiPane({
       const fresh = createEmptySession(filename)
       next = {
         ...next,
+        historyOpen: true,
         activeId: fresh.id,
         sessions: [fresh, ...next.sessions].sort((a, b) => b.updatedAt - a.updatedAt),
       }
@@ -402,6 +410,7 @@ export function AiPane({
       const fresh = createEmptySession(filename)
       next = {
         ...next,
+        historyOpen: true,
         activeId: fresh.id,
         sessions: next.sessions
           .map((s) => (s.id === current.id ? { ...fresh, id: current.id } : s))
@@ -448,9 +457,30 @@ export function AiPane({
     })
   }
 
+  const slashDraft = parseAiSlashDraft(input)
+  const slashItems = slashDraft ? filterAiSlashCommands(slashDraft.query) : []
+  const slashOpen = Boolean(slashDraft)
+
+  useEffect(() => {
+    setSlashIndex(0)
+  }, [slashDraft?.query, slashOpen])
+
+  const runAiSlash = (cmd: AiSlashCommand) => {
+    setInput('')
+    if (cmd.id === 'new') startNewChat()
+    else if (cmd.id === 'clear') clearChatWindow()
+    window.setTimeout(() => textareaRef.current?.focus(), 0)
+  }
+
   const send = async () => {
     const t = input.trim()
     if (!t || busy) return
+
+    const slashCmd = matchAiSlashCommand(t)
+    if (slashCmd) {
+      runAiSlash(slashCmd)
+      return
+    }
 
     const attached = quote
     const apiMessage = buildMessageWithQuote(t, attached)
@@ -571,40 +601,20 @@ export function AiPane({
     <div className="flex h-full min-h-0 flex-col bg-[#f8f8fd]">
       <ReadingPaneHeader
         title="AI 解读"
+        onCollapse={onCollapse}
         actions={
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              title={historyOpen ? '收起历史会话' : '展开历史会话'}
-              onClick={toggleHistory}
-              className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1.5 text-[12px] font-semibold transition ${
-                historyOpen
-                  ? 'border-[#c7c9ef] bg-[#eef0fb] text-[#4f46e5]'
-                  : 'border-[#e4e6f0] bg-white text-[#6a70a0] hover:border-[#c7c9ef] hover:text-[#4f46e5]'
-              }`}
-            >
-              <History size={13} />
-              历史
-            </button>
-            <button
-              type="button"
-              title="新开对话（当前会话保留到历史）"
-              onClick={startNewChat}
-              className="inline-flex items-center gap-1 rounded-lg border border-[#e4e6f0] bg-white px-2 py-1.5 text-[12px] font-semibold text-[#6a70a0] transition hover:border-[#c7c9ef] hover:text-[#4f46e5]"
-            >
-              <MessageSquarePlus size={13} />
-              新开
-            </button>
-            <button
-              type="button"
-              title="清空当前聊天窗口"
-              onClick={clearChatWindow}
-              className="inline-flex items-center gap-1 rounded-lg border border-[#e4e6f0] bg-white px-2 py-1.5 text-[12px] font-semibold text-[#6a70a0] transition hover:border-[#fecaca] hover:text-[#dc2626]"
-            >
-              <Trash2 size={13} />
-              清空
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={toggleHistory}
+            className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1.5 text-[12px] font-semibold transition ${
+              historyOpen
+                ? 'border-[#c7c9ef] bg-[#eef0fb] text-[#4f46e5]'
+                : 'border-[#e4e6f0] bg-white text-[#6a70a0] hover:border-[#c7c9ef] hover:text-[#4f46e5]'
+            }`}
+          >
+            <History size={13} />
+            历史
+          </button>
         }
       />
       <ContextMeter usage={usage} />
@@ -671,7 +681,7 @@ export function AiPane({
             })}
             {!sessions.some((s) => sessionHasUserContent(s)) && sessions.length <= 1 ? (
               <p className="px-2 pt-2 text-[11px] leading-relaxed text-[#9aa0b8]">
-                新开对话后，有内容的会话会出现在这里。
+                输入 /new 新开对话后，有内容的会话会出现在这里。
               </p>
             ) : null}
           </div>
@@ -772,8 +782,9 @@ export function AiPane({
 
             <ResizablePanel id="composer" minSize="18" className="min-h-0">
               <div className="flex h-full min-h-0 flex-col bg-white/80 px-3 py-2.5">
-                <div className="flex min-h-0 flex-1 items-stretch gap-2">
+                <div className="relative flex min-h-0 flex-1 items-stretch gap-2">
                   <div
+                    ref={composerBoxRef}
                     className={`flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-white transition ${
                       busy
                         ? 'border-[#e4e6f0] opacity-60'
@@ -813,6 +824,36 @@ export function AiPane({
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
                       onKeyDown={(e) => {
+                        if (slashOpen && slashItems.length > 0) {
+                          if (e.key === 'ArrowDown') {
+                            e.preventDefault()
+                            setSlashIndex((i) => (i + 1) % slashItems.length)
+                            return
+                          }
+                          if (e.key === 'ArrowUp') {
+                            e.preventDefault()
+                            setSlashIndex((i) => (i + slashItems.length - 1) % slashItems.length)
+                            return
+                          }
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault()
+                            const item = slashItems[Math.min(slashIndex, slashItems.length - 1)]
+                            if (item) runAiSlash(item)
+                            return
+                          }
+                          if (e.key === 'Tab' && !e.shiftKey) {
+                            e.preventDefault()
+                            const item = slashItems[Math.min(slashIndex, slashItems.length - 1)]
+                            if (item) setInput(`/${item.aliases[0]}`)
+                            return
+                          }
+                          if (e.key === 'Escape') {
+                            e.preventDefault()
+                            setInput('')
+                            return
+                          }
+                        }
+
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault()
                           void send()
@@ -837,11 +878,19 @@ export function AiPane({
                       placeholder={
                         quote
                           ? '针对摘录提问…（Enter 发送）'
-                          : `向 AI 提问这篇文献…（选中 MD/译文后 ${quoteShortcutLabel} 导入）`
+                          : `提问文献，或输入 / 使用命令（如 /new · /clear）… ${quoteShortcutLabel} 导入摘录`
                       }
                       className="h-full min-h-0 flex-1 resize-none border-0 bg-transparent px-3 py-2.5 text-[13px] leading-relaxed text-ink outline-none placeholder:text-[#b0b5c9] disabled:cursor-not-allowed"
                     />
                   </div>
+                  <AiSlashMenu
+                    open={slashOpen}
+                    anchorRef={composerBoxRef}
+                    items={slashItems}
+                    selectedIndex={Math.min(slashIndex, Math.max(slashItems.length - 1, 0))}
+                    onHover={setSlashIndex}
+                    onSelect={runAiSlash}
+                  />
                   <button
                     type="button"
                     onClick={() => void send()}
