@@ -41,6 +41,7 @@ import {
   formatBytes,
   formatUploadTime,
   getTask,
+  paperDisplayTitle,
   retryTask,
   type UploadItem,
 } from '@/services/api'
@@ -192,6 +193,7 @@ function TaskRow({ item }: { item: UploadItem }) {
     (stage === 'parsed' || stage === 'completed' || stage === 'failed' || stage === 'translating')
   const canExportZh = canExportMd && Boolean(item.has_zh)
 
+  const displayTitle = paperDisplayTitle(item)
   const baseName = (item.filename || 'document').replace(/\.[^.]+$/, '') || 'document'
 
   const onTranslate = async () => {
@@ -206,7 +208,7 @@ function TaskRow({ item }: { item: UploadItem }) {
   }
 
   const onDelete = async () => {
-    if (!confirm(`删除「${item.filename}」及其解析结果？`)) return
+    if (!confirm(`删除「${displayTitle}」及其解析结果？`)) return
     try {
       await remove(item.upload_id)
     } catch (err) {
@@ -277,7 +279,9 @@ function TaskRow({ item }: { item: UploadItem }) {
       </span>
 
       <div className="min-w-0">
-        <p className="truncate text-[15px] font-semibold text-ink">{item.filename}</p>
+        <p className="truncate text-[15px] font-semibold text-ink" title={displayTitle}>
+          {displayTitle}
+        </p>
         <p className="mt-0.5 truncate text-[12px] text-[#9aa0b8]">
           {formatBytes(item.size)}
           {item.created_at ? ` · ${formatUploadTime(item.created_at)}` : ''}

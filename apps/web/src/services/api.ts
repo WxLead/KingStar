@@ -110,6 +110,31 @@ export async function uploadFile(file: File): Promise<UploadItem> {
   return request('/uploads', { method: 'POST', body })
 }
 
+/** Download PDF from arXiv / DOI / direct URL and register as upload. */
+export async function uploadFromUrl(url: string): Promise<UploadItem> {
+  const res = await fetch(`${API_BASE}/uploads/from-url`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: url.trim() }),
+  })
+  if (!res.ok) {
+    let detail = ''
+    try {
+      const body = (await res.json()) as { detail?: unknown }
+      if (typeof body.detail === 'string') detail = body.detail
+      else if (Array.isArray(body.detail)) {
+        detail = body.detail
+          .map((x) => (typeof x === 'object' && x && 'msg' in x ? String((x as { msg: unknown }).msg) : String(x)))
+          .join('; ')
+      }
+    } catch {
+      detail = await res.text().catch(() => '')
+    }
+    throw new Error(detail || `${res.status} ${res.statusText}`)
+  }
+  return res.json() as Promise<UploadItem>
+}
+
 export async function listUploads(): Promise<{ items: UploadItem[] }> {
   return request('/uploads')
 }
@@ -592,6 +617,7 @@ export async function patchPaperLibrary(
     abstract: string | null
     venue: string | null
     venue_type: string | null
+    arxiv_id: string | null
     folder: string | null
     favorited: boolean
     tags: string[]

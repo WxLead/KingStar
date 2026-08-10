@@ -482,13 +482,42 @@ def _enrich_ai_hit(ai: dict[str, Any], *, corpus: str) -> dict[str, Any] | None:
 
     arxiv_id = ai.get("arxiv_id") or extract_arxiv_id(corpus)
     if arxiv_id:
+        m = re.search(r"(\d{4}\.\d{4,5})", str(arxiv_id))
+        arxiv_id = m.group(1) if m else str(arxiv_id).strip()
         hit = lookup_arxiv(arxiv_id)
         if hit:
+            merged = _merge_ai_registry(ai, hit, source="ai-arxiv")
+            if not merged.get("arxiv_id"):
+                merged["arxiv_id"] = arxiv_id
+            if not (merged.get("venue") or "").strip():
+                merged["venue"] = "arXiv"
+            if str(merged.get("venue_type") or "").strip().lower() not in {
+                "journal",
+                "conference",
+                "preprint",
+                "other",
+            }:
+                merged["venue_type"] = "preprint"
             return {
                 "ok": True,
                 "matched_by": "ai+arxiv",
-                **_merge_ai_registry(ai, hit, source="ai-arxiv"),
+                **merged,
             }
+        # Registry miss — still persist arXiv id from AI/corpus
+        ai_only = {k: v for k, v in ai.items() if k != "confidence"}
+        ai_only["arxiv_id"] = arxiv_id
+        if not (ai_only.get("venue") or "").strip():
+            ai_only["venue"] = "arXiv"
+        if str(ai_only.get("venue_type") or "").strip().lower() not in {
+            "journal",
+            "conference",
+            "preprint",
+            "other",
+        }:
+            ai_only["venue_type"] = "preprint"
+        ai_only["metadata_source"] = "ai-arxiv"
+        if ai_only.get("title") or ai_only.get("arxiv_id"):
+            return {"ok": True, "matched_by": "ai+arxiv", **ai_only}
 
     title = (ai.get("title") or "").strip()
     if title and len(title) >= 8:
@@ -519,25 +548,54 @@ def _merge_ai_registry(
     reg_title = (reg.get("title") or "").strip()
     title = reg_title or ai_title
     if ai_title and reg_title and _title_token_overlap(ai_title.casefold(), reg_title.casefold()) < 0.35:
-        # Likely wrong Crossref hit — keep AI
-        return {
-            **{k: v for k, v in ai.items() if k != "confidence"},
-            "doi": ai.get("doi") or reg.get("doi"),
-            "metadata_source": "ai",
-        }
+        # Likely wrong registry title — keep AI biblio, but retain arXiv anchors
+        out = {k: v for k, v in ai.items() if k != "confidence"}
+        out["doi"] = ai.get("doi") or reg.get("doi")
+        out["arxiv_id"] = ai.get("arxiv_id") or reg.get("arxiv_id")
+        if out.get("arxiv_id"):
+            if not (out.get("venue") or "").strip():
+                out["venue"] = "arXiv"
+            if str(out.get("venue_type") or "").strip().lower() not in {
+                "journal",
+                "conference",
+                "preprint",
+                "other",
+            }:
+                out["venue_type"] = "preprint"
+            if not out.get("abstract") and reg.get("abstract"):
+                out["abstract"] = reg.get("abstract")
+            if not out.get("authors") and reg.get("authors"):
+                out["authors"] = reg.get("authors")
+            if not out.get("year") and reg.get("year"):
+                out["year"] = reg.get("year")
+            out["metadata_source"] = "ai-arxiv" if "arxiv" in source else "ai"
+        else:
+            out["metadata_source"] = "ai"
+        return out
 
     authors = reg.get("authors") or ai.get("authors") or []
-    return {
+    out = {
         "title": title or None,
         "authors": authors,
         "year": reg.get("year") or ai.get("year"),
         "doi": reg.get("doi") or ai.get("doi"),
-        "arxiv_id": ai.get("arxiv_id") or reg.get("arxiv_id"),
+        "arxiv_id": reg.get("arxiv_id") or ai.get("arxiv_id"),
         "abstract": reg.get("abstract") or ai.get("abstract"),
         "venue": reg.get("venue") or ai.get("venue"),
         "venue_type": reg.get("venue_type") or ai.get("venue_type"),
         "metadata_source": source,
     }
+    if out.get("arxiv_id"):
+        if not (out.get("venue") or "").strip():
+            out["venue"] = "arXiv"
+        if str(out.get("venue_type") or "").strip().lower() not in {
+            "journal",
+            "conference",
+            "preprint",
+            "other",
+        }:
+            out["venue_type"] = "preprint"
+    return out
 
 
 def _identify_heuristic(

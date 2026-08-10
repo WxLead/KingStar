@@ -188,6 +188,7 @@ export default function PaperMetaDialog({
         abstract: abstract.trim() || null,
         venue: venue.trim() || null,
         venue_type: venueType.trim() || null,
+        arxiv_id: arxivId.trim() || null,
         folder: folder.trim() || null,
         tags: tags
           .split(/[,，]/)
@@ -324,19 +325,53 @@ export default function PaperMetaDialog({
                   />
                 </label>
                 <label className="block">
+                  <span className={labelCls}>类型</span>
+                  <select
+                    className={fieldCls}
+                    value={venueType}
+                    onChange={(e) => {
+                      const next = e.target.value
+                      setVenueType(next)
+                      if (next === 'preprint' && !venue.trim()) setVenue('arXiv')
+                    }}
+                  >
+                    <option value="">未指定</option>
+                    <option value="journal">期刊</option>
+                    <option value="conference">会议</option>
+                    <option value="preprint">预印本（arXiv 等）</option>
+                    <option value="other">其他</option>
+                  </select>
+                </label>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
                   <span className={labelCls}>DOI</span>
                   <input className={fieldCls} value={doi} onChange={(e) => setDoi(e.target.value)} />
+                </label>
+                <label className="block">
+                  <span className={labelCls}>arXiv ID</span>
+                  <input
+                    className={fieldCls}
+                    value={arxivId}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      setArxivId(v)
+                      if (v.trim() && !venueType) setVenueType('preprint')
+                      if (v.trim() && !venue.trim()) setVenue('arXiv')
+                    }}
+                    placeholder="2406.09246"
+                  />
                 </label>
               </div>
               <label className="block">
                 <span className={labelCls}>
-                  期刊 / 会议{venueTypeLabel ? `（${venueTypeLabel}）` : ''}
+                  期刊 / 会议 / 来源{venueTypeLabel ? `（${venueTypeLabel}）` : ''}
                 </span>
                 <input
                   className={fieldCls}
                   value={venue}
                   onChange={(e) => setVenue(e.target.value)}
-                  placeholder="例如：NeurIPS / Nature"
+                  placeholder="例如：NeurIPS / Nature / arXiv"
                 />
               </label>
               <div className="grid grid-cols-2 gap-3">

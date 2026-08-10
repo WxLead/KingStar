@@ -540,9 +540,23 @@ export default function ReadingRoom({ item }: { item: UploadItem }) {
                 {displayTitle}
               </h1>
               <p className="mt-0.5 truncate text-[12px] text-[#9aa0b8]">
-                {item.venue
-                  ? `${item.venue_type === 'conference' ? '会议' : item.venue_type === 'journal' ? '期刊' : ''}${item.venue_type ? ' · ' : ''}${item.venue}${item.year ? ` · ${item.year}` : ''}`
-                  : item.filename}
+                {(() => {
+                  const typeLabel =
+                    item.venue_type === 'conference'
+                      ? '会议'
+                      : item.venue_type === 'journal'
+                        ? '期刊'
+                        : item.venue_type === 'preprint' || item.arxiv_id
+                          ? '预印本'
+                          : item.venue_type === 'other'
+                            ? '其他'
+                            : ''
+                  const venueText = item.venue || (item.arxiv_id ? `arXiv:${item.arxiv_id}` : '')
+                  if (venueText) {
+                    return `${typeLabel}${typeLabel ? ' · ' : ''}${venueText}${item.year ? ` · ${item.year}` : ''}`
+                  }
+                  return item.filename
+                })()}
               </p>
             </div>
           </div>

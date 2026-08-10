@@ -128,6 +128,31 @@ export function venueAbbreviation(venue?: string | null): string | null {
   return one.slice(0, 6)
 }
 
+/** Cover badge: venue abbr, or arXiv for preprints / arxiv_id. */
+export function coverVenueLabel(
+  venue?: string | null,
+  opts?: { venueType?: string | null; arxivId?: string | null },
+): string | null {
+  const abbr = venueAbbreviation(venue)
+  if (abbr) return abbr
+  const arxivId = (opts?.arxivId || '').trim()
+  const vt = (opts?.venueType || '').trim().toLowerCase()
+  if (arxivId || vt === 'preprint') return 'arXiv'
+  return null
+}
+
+export function venueTypeDisplayLabel(
+  venueType?: string | null,
+  arxivId?: string | null,
+): string {
+  const vt = (venueType || '').trim().toLowerCase()
+  if (vt === 'journal') return '期刊'
+  if (vt === 'conference') return '会议'
+  if (vt === 'preprint' || (arxivId || '').trim()) return '预印本'
+  if (vt === 'other') return '其他'
+  return ''
+}
+
 function coverPalette(seed: string) {
   let h = 0
   for (let i = 0; i < seed.length; i += 1) h = (h * 31 + seed.charCodeAt(i)) >>> 0
@@ -138,19 +163,27 @@ export function BookCover({
   title,
   uploadId,
   venue,
+  venueType,
+  arxivId,
   size = 'md',
 }: {
   title: string
   uploadId: string
   /** Journal / conference name — shown as abbreviation badge */
   venue?: string | null
+  venueType?: string | null
+  arxivId?: string | null
   size?: 'sm' | 'md' | 'lg'
 }) {
   const palette = coverPalette(uploadId + title)
   const initial = title.slice(0, 1).toUpperCase() || 'S'
   const compact = size === 'sm'
   const large = size === 'lg'
-  const venueAbbr = venueAbbreviation(venue)
+  const venueAbbr = coverVenueLabel(venue, { venueType, arxivId })
+  const badgeTitle =
+    (venue || '').trim() ||
+    ((arxivId || '').trim() ? `arXiv:${(arxivId || '').trim()}` : undefined) ||
+    venueAbbr
 
   return (
     <div
@@ -185,7 +218,7 @@ export function BookCover({
           <div className="flex flex-wrap gap-0.5">
             {venueAbbr ? (
               <span
-                title={venue || venueAbbr}
+                title={badgeTitle || venueAbbr}
                 className={`max-w-full truncate rounded bg-white/20 font-semibold tracking-wide text-white backdrop-blur-sm ${
                   large ? 'px-2 py-0.5 text-[12px]' : 'px-1 py-px text-[8px]'
                 }`}
@@ -215,7 +248,7 @@ export function BookCover({
         <div className="relative flex h-full flex-col">
           {venueAbbr ? (
             <span
-              title={venue || venueAbbr}
+              title={badgeTitle || venueAbbr}
               className="absolute left-0.5 top-0.5 max-w-[calc(100%-4px)] truncate rounded bg-black/25 px-0.5 text-[7px] font-bold leading-tight tracking-wide text-white/95"
             >
               {venueAbbr}
@@ -237,6 +270,8 @@ export function BookShelfRow({
   hasZh,
   hasNotes = false,
   venue,
+  venueType,
+  arxivId,
   subtitle,
   meta,
   status,
@@ -249,6 +284,8 @@ export function BookShelfRow({
   hasZh?: boolean
   hasNotes?: boolean
   venue?: string | null
+  venueType?: string | null
+  arxivId?: string | null
   subtitle?: string
   meta?: string
   status?: {
@@ -272,7 +309,14 @@ export function BookShelfRow({
     >
       <button type="button" onClick={onClick} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
         <div className="relative shrink-0">
-          <BookCover title={title} uploadId={uploadId} venue={venue} size="sm" />
+          <BookCover
+            title={title}
+            uploadId={uploadId}
+            venue={venue}
+            venueType={venueType}
+            arxivId={arxivId}
+            size="sm"
+          />
           {status ? (
             <span
               className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-white ${

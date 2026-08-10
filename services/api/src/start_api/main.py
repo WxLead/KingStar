@@ -738,6 +738,61 @@ async def upload(file: UploadFile = File(...)) -> UploadResponse:
     )
 
 
+class UploadFromUrlRequest(BaseModel):
+    url: str = Field(..., min_length=3, max_length=2000)
+
+
+@app.post("/api/v1/uploads/from-url", response_model=UploadResponse)
+def upload_from_url(body: UploadFromUrlRequest) -> UploadResponse:
+    """Download a PDF from arXiv / DOI / direct URL and register as an upload."""
+    from start_api.url_import import download_pdf, enrich_metadata, resolve_source
+
+    try:
+        source = resolve_source(body.url)
+        data, filename, content_type = download_pdf(
+            source.download_url, suggested_name=source.filename
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    upload_id = str(uuid.uuid4())
+    dest_dir = _upload_dir(upload_id)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / filename
+    dest.write_bytes(data)
+    size = dest.stat().st_size
+    created = _now()
+    meta = {
+        "upload_id": upload_id,
+        "filename": filename,
+        "size": size,
+        "content_type": content_type,
+        "created_at": created,
+        "last_task_id": None,
+        "last_status": None,
+        "has_zh": False,
+        "source_url": body.url.strip(),
+        "download_url": source.download_url,
+    }
+    _save_upload_meta(meta)
+
+    try:
+        patch = enrich_metadata(source.arxiv_id, source.doi)
+        if patch:
+            patch["metadata_identified_at"] = created
+            library_db.upsert_paper(upload_id, patch)
+    except Exception:
+        pass
+
+    return UploadResponse(
+        upload_id=upload_id,
+        filename=filename,
+        size=size,
+        content_type=content_type,
+        created_at=created,
+    )
+
+
 @app.get("/api/v1/uploads")
 def list_uploads() -> dict[str, Any]:
     return {"items": _list_upload_metas()}

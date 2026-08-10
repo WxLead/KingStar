@@ -46,6 +46,7 @@ class PaperPatch(BaseModel):
     abstract: str | None = None
     venue: str | None = None
     venue_type: str | None = None
+    arxiv_id: str | None = None
     folder: str | None = None
     favorited: bool | None = None
     tags: list[str] | None = None
@@ -187,7 +188,10 @@ def get_library(upload_id: str) -> dict[str, Any]:
 @router.patch("/uploads/{upload_id}/library")
 def patch_library(upload_id: str, body: PaperPatch) -> dict[str, Any]:
     patch = body.model_dump(exclude_unset=True)
-    if any(k in patch for k in ("title", "authors", "year", "doi", "abstract", "venue", "venue_type")):
+    if any(
+        k in patch
+        for k in ("title", "authors", "year", "doi", "abstract", "venue", "venue_type", "arxiv_id")
+    ):
         patch.setdefault("metadata_source", "manual")
     paper = store.upsert_paper(upload_id, patch)
     _reindex_safe(upload_id)

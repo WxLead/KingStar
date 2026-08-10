@@ -13,6 +13,7 @@ import {
   listUploads,
   translateTask,
   uploadFile,
+  uploadFromUrl,
   type UploadItem,
 } from '@/services/api'
 import { invalidateUploadBlob } from '@/features/parse/previewCache'
@@ -26,6 +27,8 @@ type UploadsContextValue = {
   setSelectedId: (id: string | null) => void
   refresh: () => Promise<void>
   upload: (file: File) => Promise<UploadItem>
+  /** Fetch PDF from arXiv / DOI / direct URL into the library. */
+  importUrl: (url: string) => Promise<UploadItem>
   remove: (uploadId: string) => Promise<void>
   parseLayout: (
     uploadId: string,
@@ -80,6 +83,16 @@ export function UploadsProvider({ children }: { children: ReactNode }) {
   const upload = useCallback(
     async (file: File) => {
       const item = await uploadFile(file)
+      await refresh()
+      setSelectedId(item.upload_id)
+      return item
+    },
+    [refresh],
+  )
+
+  const importUrl = useCallback(
+    async (url: string) => {
+      const item = await uploadFromUrl(url)
       await refresh()
       setSelectedId(item.upload_id)
       return item
@@ -170,6 +183,7 @@ export function UploadsProvider({ children }: { children: ReactNode }) {
       setSelectedId,
       refresh,
       upload,
+      importUrl,
       remove,
       parseLayout,
       translateOneClick,
@@ -182,6 +196,7 @@ export function UploadsProvider({ children }: { children: ReactNode }) {
       selectedId,
       refresh,
       upload,
+      importUrl,
       remove,
       parseLayout,
       translateOneClick,

@@ -63,6 +63,8 @@ function FavoriteGrid({
                 title={title}
                 uploadId={item.upload_id}
                 venue={item.venue}
+                venueType={item.venue_type}
+                arxivId={item.arxiv_id}
                 size="lg"
               />
             </button>

@@ -1,29 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { motion } from 'framer-motion'
-import {
-  CloudUpload,
-  Upload,
-  Link as LinkIcon,
-  Globe,
-  FileText,
-  Image as ImageIcon,
-  Presentation,
-  FileType,
-  File,
-  FileCode,
-} from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { CloudUpload, Upload, Link as LinkIcon, Globe } from 'lucide-react'
 import { useUploads } from '@/features/uploads/UploadsContext'
 import { formatBytes } from '@/services/api'
 import ParseWorkspace from '@/features/parse/ParseWorkspace'
 
-const formats = [
-  { icon: FileText, color: '#e23f2b', name: 'PDF', ext: '.pdf' },
-  { icon: ImageIcon, color: '#22a06b', name: '图片', ext: '.png .jpg .jpeg .gif' },
-  { icon: Presentation, color: '#e8801a', name: 'PPT', ext: '.ppt .pptx' },
-  { icon: FileType, color: '#2b6cd4', name: 'Word', ext: '.doc .docx' },
-  { icon: File, color: '#6b7280', name: 'TXT', ext: '.txt' },
-  { icon: FileCode, color: '#7c3aed', name: 'Markdown', ext: '.md' },
-]
+const FORMAT_TIP = '支持 PDF 论文，以及 PNG / JPG / WebP 扫描图'
 
 const stagger = {
   hidden: {},
@@ -36,13 +18,16 @@ const rise = {
 
 function UploadPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { upload } = useUploads()
+  const { upload, importUrl } = useUploads()
   const [busy, setBusy] = useState(false)
+  const [linkBusy, setLinkBusy] = useState(false)
+  const [linkUrl, setLinkUrl] = useState('')
   const [message, setMessage] = useState<string | null>(null)
+  const [showFormatTip, setShowFormatTip] = useState(false)
 
   async function handleFiles(files: FileList | null) {
     const file = files?.[0]
-    if (!file || busy) return
+    if (!file || busy || linkBusy) return
     setBusy(true)
     setMessage(`上传中：${file.name}`)
     try {
@@ -56,41 +41,59 @@ function UploadPanel() {
     }
   }
 
+  async function handleImportLink() {
+    const url = linkUrl.trim()
+    if (!url || busy || linkBusy) return
+    setLinkBusy(true)
+    setMessage('正在从链接获取 PDF…')
+    try {
+      const item = await importUrl(url)
+      setMessage(`已导入「${item.filename}」（${formatBytes(item.size)}）`)
+      setLinkUrl('')
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : '链接导入失败')
+    } finally {
+      setLinkBusy(false)
+    }
+  }
+
   return (
     <motion.div
       variants={stagger}
       initial="hidden"
       animate="show"
-      className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-[#e8e9f4] bg-[#f8f8fd]"
+      className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
     >
-      <div className="mx-auto flex w-full max-w-[1040px] flex-1 flex-col justify-center overflow-y-auto px-12 py-7">
+      <div className="mx-auto flex w-full max-w-[920px] flex-1 flex-col justify-center overflow-y-auto px-8 py-8 sm:px-12">
         <motion.div variants={rise} className="flex flex-col items-center">
           <h1 className="text-gradient-flow font-display text-[38px] leading-tight tracking-wide">
             StarT智能解析
           </h1>
           <p className="mt-3 text-center text-[16px] text-ink-soft">
-            上传文件后将进入预览与版面分析工作区
+            上传论文 PDF，进入预览与版面分析
           </p>
         </motion.div>
 
         <motion.div
           variants={rise}
-          className="mt-6 rounded-2xl border-2 border-dashed border-[#c9cbe8] bg-white/70 px-10 py-14 transition-colors hover:border-[#a5a8e0] hover:bg-white"
+          className="relative mt-7 flex min-h-[240px] flex-col rounded-2xl border-2 border-dashed border-[#b8bce0]/80 bg-white/35 px-8 py-6 shadow-[0_12px_40px_rgba(30,42,82,0.04)] transition-colors hover:border-[#8f94d4] hover:bg-white/50 sm:min-h-[300px] sm:px-12 sm:py-7"
+          onMouseEnter={() => setShowFormatTip(true)}
+          onMouseLeave={() => setShowFormatTip(false)}
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             e.preventDefault()
             void handleFiles(e.dataTransfer.files)
           }}
         >
-          <div className="flex flex-col items-center">
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-5 py-4">
             <motion.div
               animate={{ y: [0, -6, 0] }}
               transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
-              className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#eef0fd] to-[#e4e6fb] shadow-sm"
+              className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/70 shadow-sm ring-1 ring-[#e4e6f2]/80"
             >
               <CloudUpload size={30} className="text-[#4f46e5]" />
             </motion.div>
-            <p className="mt-3.5 text-[17px] font-bold text-ink">
+            <p className="text-[17px] font-bold text-ink">
               拖拽文件到此处，或
               <button
                 type="button"
@@ -101,73 +104,90 @@ function UploadPanel() {
               </button>
             </p>
 
-            <motion.button
-              type="button"
-              whileHover={{ y: -2, boxShadow: '0 10px 28px rgba(99,68,229,0.4)' }}
-              whileTap={{ scale: 0.97 }}
-              disabled={busy}
-              onClick={() => fileInputRef.current?.click()}
-              className="btn-shine mt-4 flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-[#4f46e5] to-[#7c3aed] px-7 py-3 text-[16px] font-bold text-white shadow-[0_6px_20px_rgba(99,68,229,0.3)] disabled:opacity-60"
-            >
-              <Upload size={18} />
-              {busy ? '上传中…' : '选择文件上传'}
-            </motion.button>
+            <div className="relative mt-2 flex flex-col items-center">
+              <motion.button
+                type="button"
+                whileHover={{ y: -2, boxShadow: '0 10px 28px rgba(99,68,229,0.4)' }}
+                whileTap={{ scale: 0.97 }}
+                disabled={busy || linkBusy}
+                onClick={() => fileInputRef.current?.click()}
+                className="btn-shine flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-[#4f46e5] to-[#7c3aed] px-7 py-3 text-[16px] font-bold text-white shadow-[0_6px_20px_rgba(99,68,229,0.3)] disabled:opacity-60"
+              >
+                <Upload size={18} />
+                {busy ? '上传中…' : '选择文件上传'}
+              </motion.button>
+              <AnimatePresence>
+                {showFormatTip && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 2 }}
+                    transition={{ duration: 0.18 }}
+                    className="pointer-events-none absolute left-1/2 top-full z-10 mt-2.5 -translate-x-1/2 whitespace-nowrap rounded-lg border border-[#e4e6f2]/80 bg-white/95 px-3.5 py-2 text-[13px] text-ink-soft shadow-[0_8px_24px_rgba(30,42,82,0.1)] backdrop-blur-sm"
+                  >
+                    {FORMAT_TIP}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
             <input
               ref={fileInputRef}
               type="file"
               className="hidden"
-              accept=".pdf,.png,.jpg,.jpeg,.gif,.ppt,.pptx,.doc,.docx,.txt,.md"
+              accept=".pdf,.png,.jpg,.jpeg,.webp"
               onChange={(e) => void handleFiles(e.target.files)}
             />
-            {message && <p className="mt-3 text-center text-[14px] text-[#6a70a0]">{message}</p>}
-          </div>
 
-          <div className="mt-5 border-t border-[#eceef6] pt-4">
-            <p className="text-[15px] font-bold text-ink">支持的文件格式</p>
-            <div className="mt-3 grid grid-cols-6 gap-3">
-              {formats.map((f, i) => (
-                <motion.div
-                  key={f.name}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 + i * 0.06, duration: 0.4 }}
-                  whileHover={{ y: -3, boxShadow: '0 6px 18px rgba(30,42,82,0.1)' }}
-                  className="flex cursor-default items-center gap-2.5 rounded-xl border border-[#eceef6] bg-white px-3 py-2.5"
-                >
-                  <f.icon size={22} style={{ color: f.color }} className="shrink-0" />
-                  <div className="min-w-0 leading-tight">
-                    <p className="text-[14px] font-bold text-ink">{f.name}</p>
-                    <p className="mt-0.5 truncate text-[12px] text-[#9aa0b8]">{f.ext}</p>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+            {message ? (
+              <p className="max-w-lg rounded-lg bg-white/60 px-3 py-1.5 text-center text-[13px] leading-relaxed text-[#6a70a0] backdrop-blur-sm">
+                {message}
+              </p>
+            ) : null}
           </div>
         </motion.div>
 
         <motion.div variants={rise} className="mt-5">
-          <div className="flex items-center gap-2 text-[16px] font-bold text-ink">
-            <LinkIcon size={18} className="text-[#4f46e5]" />
-            输入文档链接
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-[#cfd2e8]/70" />
+            <span className="shrink-0 text-[12px] font-medium tracking-wide text-[#7a819f]">
+              或从链接导入
+            </span>
+            <div className="h-px flex-1 bg-[#cfd2e8]/70" />
           </div>
-          <div className="mt-2.5 flex gap-3.5">
-            <input
-              type="text"
-              placeholder="粘贴文档链接（支持 PDF 链接、在线文档等）"
-              className="h-[3.25rem] flex-1 rounded-xl border border-[#dfe1f0] bg-white px-5 text-[16px] text-ink outline-none transition-all placeholder:text-[#a8adc4] focus:border-[#4f46e5] focus:ring-4 focus:ring-[#4f46e5]/10"
-            />
+
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-stretch">
+            <div className="relative min-w-0 flex-1">
+              <LinkIcon
+                size={16}
+                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#9aa0b8]"
+              />
+              <input
+                type="text"
+                value={linkUrl}
+                disabled={busy || linkBusy}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    void handleImportLink()
+                  }
+                }}
+                placeholder="arXiv / DOI / PDF 直链，如 https://arxiv.org/abs/2406.09246"
+                className="h-[3.1rem] w-full rounded-xl border border-[#dfe1f0]/90 bg-white/55 pl-11 pr-4 text-[15px] text-ink outline-none transition-all placeholder:text-[#a8adc4] backdrop-blur-sm focus:border-[#4f46e5] focus:bg-white/80 focus:ring-4 focus:ring-[#4f46e5]/10 disabled:opacity-60"
+              />
+            </div>
             <motion.button
               type="button"
               whileHover={{ y: -2, boxShadow: '0 10px 28px rgba(99,68,229,0.4)' }}
               whileTap={{ scale: 0.97 }}
-              className="btn-shine flex h-[3.25rem] items-center gap-2.5 rounded-xl bg-gradient-to-r from-[#4f46e5] to-[#7c3aed] px-6 text-[16px] font-bold text-white shadow-[0_6px_20px_rgba(99,68,229,0.3)]"
-              onClick={() => setMessage('链接解析将在后续版本接入')}
+              disabled={busy || linkBusy || !linkUrl.trim()}
+              className="btn-shine flex h-[3.1rem] shrink-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#4f46e5] to-[#7c3aed] px-6 text-[15px] font-bold text-white shadow-[0_6px_20px_rgba(99,68,229,0.3)] disabled:opacity-60"
+              onClick={() => void handleImportLink()}
             >
-              <Globe size={18} />
-              解析链接
+              <Globe size={17} />
+              {linkBusy ? '获取中…' : '导入链接'}
             </motion.button>
           </div>
-          <p className="mt-2.5 text-[14px] text-[#9aa0b8]">支持 arXiv、Google Drive、OneDrive、GitHub、官网链接等</p>
         </motion.div>
       </div>
     </motion.div>

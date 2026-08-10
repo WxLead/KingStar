@@ -210,7 +210,7 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="sticky top-0 flex h-screen w-[340px] shrink-0 flex-col self-start bg-[#f5f6fb] px-4 pb-6 pt-7">
+    <aside className="sticky top-0 flex h-screen w-[340px] shrink-0 flex-col self-start border-r border-[#e4e6f2]/80 bg-[#f7f8fc]/95 px-4 pb-6 pt-7 backdrop-blur-sm">
       <motion.div variants={container} initial="hidden" animate="show" className="flex min-h-0 flex-1 flex-col">
         <motion.div variants={itemAnim} className="flex items-start gap-1">
           <StarTLogo />
@@ -283,6 +283,8 @@ export default function Sidebar() {
                             hasZh={item.has_zh}
                             hasNotes={Boolean(item.has_notes)}
                             venue={item.venue}
+                            venueType={item.venue_type}
+                            arxivId={item.arxiv_id}
                             subtitle={formatUploadTime(item.created_at)}
                             status={{
                               label: meta.label,
@@ -320,6 +322,8 @@ export default function Sidebar() {
                           hasZh={item.has_zh}
                           hasNotes={Boolean(item.has_notes)}
                           venue={item.venue}
+                          venueType={item.venue_type}
+                          arxivId={item.arxiv_id}
                           subtitle={formatOpenedAt(openedAt)}
                           meta={bookMeta(item)}
                           selected={

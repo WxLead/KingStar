@@ -141,6 +141,8 @@ function ShelfCard({
           title={title}
           uploadId={item.upload_id}
           venue={item.venue}
+          venueType={item.venue_type}
+          arxivId={item.arxiv_id}
           size="lg"
         />
       </button>
@@ -521,6 +523,8 @@ export default function LibraryPage() {
                             hasZh={item.has_zh}
                             hasNotes={hasNotes}
                             venue={item.venue}
+                            venueType={item.venue_type}
+                            arxivId={item.arxiv_id}
                             subtitle={formatOpenedAt(openedAt)}
                             meta={`${item.has_zh ? '原文 · 译文' : '原文'}${hasNotes ? ' · 笔记' : ''}`}
                             onClick={() => openReading(item)}
