@@ -12,8 +12,7 @@ import {
   FileSearch,
 } from 'lucide-react'
 import { useSidebarChrome } from '@/features/layout/SidebarChrome'
-import { BookShelfRow, titleFromFilename } from '@/features/reading/bookCover'
-import { hasNotesContent } from '@/features/reading/notesStorage'
+import { BookShelfRow } from '@/features/reading/bookCover'
 import {
   formatOpenedAt,
   listRecentReads,
@@ -26,7 +25,7 @@ import {
 import { formatShortcut, useKeyboardShortcuts } from '@/features/settings/keyboardShortcuts'
 import { useUploads } from '@/features/uploads/UploadsContext'
 import { isStageBusy, resolveStage, stageMeta } from '@/features/uploads/pipelineStage'
-import { formatUploadTime, type UploadItem } from '@/services/api'
+import { formatUploadTime, paperDisplayTitle, type UploadItem } from '@/services/api'
 
 function StarTLogo() {
   return (
@@ -54,9 +53,6 @@ function StarTLogo() {
       </motion.svg>
       <div className="min-w-0 leading-tight">
         <span className="font-display block text-[32px] text-ink">StarT</span>
-        <span className="block truncate text-[13px] font-medium tracking-wide text-[#9aa0b8]">
-          论文解析 · 翻译 · 解读
-        </span>
       </div>
     </div>
   )
@@ -207,7 +203,7 @@ export default function Sidebar() {
   }
 
   const bookMeta = (item: UploadItem) => {
-    const hasNotes = hasNotesContent(item.upload_id)
+    const hasNotes = Boolean(item.has_notes)
     const parts = [item.has_zh ? '原文 · 译文' : '原文']
     if (hasNotes) parts.push('笔记')
     return parts.join(' · ')
@@ -228,7 +224,13 @@ export default function Sidebar() {
           </button>
         </motion.div>
 
-        <motion.nav variants={itemAnim} className="mt-7 space-y-1.5">
+        <motion.div
+          variants={itemAnim}
+          aria-hidden
+          className="mx-2 mt-5 h-px bg-gradient-to-r from-transparent via-[#a5a8e0] to-transparent"
+        />
+
+        <motion.nav variants={itemAnim} className="mt-5 space-y-1.5">
           <NavItem
             to="/"
             end
@@ -238,7 +240,7 @@ export default function Sidebar() {
             onNavigate={() => setSelectedId(null)}
           />
           <NavItem to="/tasks" icon={<LayoutList size={22} />} label="任务管理" />
-          <NavItem to="/library" icon={<Library size={22} />} label="我的书架" />
+          <NavItem to="/library" icon={<Library size={22} />} label="我的文献" />
           <NavItem to="/favorites" icon={<Star size={22} />} label="我的收藏" />
           <NavItem to="/settings" icon={<Settings size={22} />} label="通用设置" />
         </motion.nav>
@@ -276,9 +278,11 @@ export default function Sidebar() {
                         return (
                           <BookShelfRow
                             key={`parse-${item.upload_id}`}
-                            title={titleFromFilename(item.filename)}
+                            title={paperDisplayTitle(item)}
                             uploadId={item.upload_id}
                             hasZh={item.has_zh}
+                            hasNotes={Boolean(item.has_notes)}
+                            venue={item.venue}
                             subtitle={formatUploadTime(item.created_at)}
                             status={{
                               label: meta.label,
@@ -304,16 +308,18 @@ export default function Sidebar() {
                   />
                   {recentReads.length === 0 ? (
                     <p className="rounded-xl border border-dashed border-[#e4e6f0] bg-white/40 px-3 py-4 text-[12px] leading-relaxed text-[#9aa0b8]">
-                      暂无阅读记录。打开书架中的文献后会出现在这里。
+                      暂无阅读记录。打开文献后会出现在这里。
                     </p>
                   ) : (
                     <div className="space-y-1.5">
                       {recentReads.map(({ item, openedAt }) => (
                         <BookShelfRow
                           key={`read-${item.upload_id}`}
-                          title={titleFromFilename(item.filename)}
+                          title={paperDisplayTitle(item)}
                           uploadId={item.upload_id}
                           hasZh={item.has_zh}
+                          hasNotes={Boolean(item.has_notes)}
+                          venue={item.venue}
                           subtitle={formatOpenedAt(openedAt)}
                           meta={bookMeta(item)}
                           selected={

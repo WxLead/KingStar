@@ -1,17 +1,52 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { motion } from 'framer-motion'
-import { Library, ArrowRight, LayoutList, Clock3, BookMarked } from 'lucide-react'
-import ListPageHero, { MetaChip } from '@/features/layout/ListPageHero'
-import { BookCover, BookShelfRow, titleFromFilename } from '@/features/reading/bookCover'
-import { hasNotesContent } from '@/features/reading/notesStorage'
+import {
+  Library,
+  ArrowRight,
+  LayoutList,
+  Clock3,
+  BookMarked,
+  Star,
+  Pencil,
+  GripVertical,
+} from 'lucide-react'
+import ListPageHero from '@/features/layout/ListPageHero'
+import {
+  sectionToolbarInner,
+  toolbarCountBadge,
+  toolbarIconBox,
+  toolbarSurface,
+} from '@/features/layout/toolbarChrome'
+import PaperMetaDialog from '@/features/library/PaperMetaDialog'
+import ShelfFilterBar, {
+  applyShelfFilters,
+  EMPTY_SHELF_FILTERS,
+  type ShelfFilters,
+} from '@/features/library/ShelfFilterBar'
+import { groupShelfItems, type ShelfArrange } from '@/features/library/shelfArrange'
+import {
+  loadLibraryOrder,
+  moveVisibleInOrder,
+  saveLibraryOrder,
+  sortByLibraryOrder,
+  syncLibraryOrder,
+} from '@/features/library/shelfOrder'
+import { BookCover, BookShelfRow } from '@/features/reading/bookCover'
 import {
   formatOpenedAt,
   listRecentReads,
 } from '@/features/reading/readingRecent'
 import { useUploads } from '@/features/uploads/UploadsContext'
 import { resolveStage } from '@/features/uploads/pipelineStage'
-import type { UploadItem } from '@/services/api'
+import {
+  identifyPaper,
+  paperDisplayTitle,
+  reindexLibrary,
+  setPaperFavorite,
+  type UploadItem,
+} from '@/services/api'
+import { cn } from '@/lib/utils'
 
 function canEnterReading(item: UploadItem): boolean {
   if (!item.last_task_id) return false
@@ -19,33 +54,195 @@ function canEnterReading(item: UploadItem): boolean {
   return stage === 'parsed' || stage === 'completed' || stage === 'failed' || stage === 'translating'
 }
 
-function ShelfCard({ item, onOpen }: { item: UploadItem; onOpen: () => void }) {
-  const title = titleFromFilename(item.filename)
-  const hasNotes = hasNotesContent(item.upload_id)
-  const hasZh = Boolean(item.has_zh)
+function itemHasNotes(item: UploadItem): boolean {
+  return Boolean(item.has_notes)
+}
+
+function needsIdentify(item: UploadItem): boolean {
+  return !item.title && !item.doi && !item.venue
+}
+
+function ShelfCard({
+  item,
+  onOpen,
+  onEdit,
+  onToggleFavorite,
+  reorderable,
+  dragging,
+  dragOver,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+}: {
+  item: UploadItem
+  onOpen: () => void
+  onEdit: () => void
+  onToggleFavorite: () => void
+  reorderable?: boolean
+  dragging?: boolean
+  dragOver?: boolean
+  onDragStart?: (id: string) => void
+  onDragOver?: (id: string) => void
+  onDrop?: (id: string) => void
+  onDragEnd?: () => void
+}) {
+  const title = paperDisplayTitle(item)
+  const suppressClick = useRef(false)
 
   return (
-    <motion.button
-      type="button"
+    <motion.div
       layout
       variants={{
         hidden: { opacity: 0, y: 8 },
         show: { opacity: 1, y: 0 },
       }}
-      onClick={onOpen}
-      className="group flex flex-col text-left transition duration-200 hover:-translate-y-0.5"
+      className={cn(
+        'group relative flex flex-col text-left',
+        dragging && 'opacity-40',
+        dragOver && reorderable && 'ring-2 ring-[#4f46e5]/70 ring-offset-2 ring-offset-[#f0f1fa] rounded-xl',
+      )}
+      draggable={Boolean(reorderable)}
+      onDragStart={(e) => {
+        if (!reorderable) return
+        e.dataTransfer.effectAllowed = 'move'
+        e.dataTransfer.setData('text/plain', item.upload_id)
+        suppressClick.current = false
+        onDragStart?.(item.upload_id)
+      }}
+      onDragOver={(e) => {
+        if (!reorderable) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        onDragOver?.(item.upload_id)
+      }}
+      onDrop={(e) => {
+        if (!reorderable) return
+        e.preventDefault()
+        suppressClick.current = true
+        onDrop?.(item.upload_id)
+      }}
+      onDragEnd={() => {
+        onDragEnd?.()
+        window.setTimeout(() => {
+          suppressClick.current = false
+        }, 50)
+      }}
     >
-      <BookCover title={title} uploadId={item.upload_id} hasZh={hasZh} hasNotes={hasNotes} />
-      <div className="mt-1.5 min-w-0 px-0.5">
-        <h3 className="truncate text-[11px] font-semibold text-ink transition group-hover:text-[#4f46e5]">
-          {title}
-        </h3>
-        <p className="mt-px truncate text-[10px] text-[#9aa0b8]">
-          {hasZh ? '原文 · 译文' : '原文'}
-          {hasNotes ? ' · 笔记' : ''}
-        </p>
+      <button
+        type="button"
+        onClick={() => {
+          if (suppressClick.current) return
+          onOpen()
+        }}
+        className="flex flex-col text-left transition duration-200 hover:-translate-y-0.5"
+      >
+        <BookCover
+          title={title}
+          uploadId={item.upload_id}
+          venue={item.venue}
+          size="lg"
+        />
+      </button>
+      {reorderable ? (
+        <span
+          title="拖拽排序"
+          className="absolute left-0.5 top-0.5 flex h-6 w-6 cursor-grab items-center justify-center rounded-md bg-white/90 text-[#8b91b3] opacity-0 shadow-sm transition group-hover:opacity-100 active:cursor-grabbing"
+        >
+          <GripVertical size={12} />
+        </span>
+      ) : null}
+      <div className="absolute right-0.5 top-0.5 flex gap-0.5 opacity-0 transition group-hover:opacity-100">
+        <button
+          type="button"
+          title={item.favorited ? '取消收藏' : '收藏'}
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleFavorite()
+          }}
+          className={`flex h-6 w-6 items-center justify-center rounded-md bg-white/90 shadow-sm ${
+            item.favorited ? 'text-amber-500' : 'text-[#8b91b3] hover:text-amber-500'
+          }`}
+        >
+          <Star size={12} fill={item.favorited ? 'currentColor' : 'none'} />
+        </button>
+        <button
+          type="button"
+          title="文献信息"
+          onClick={(e) => {
+            e.stopPropagation()
+            onEdit()
+          }}
+          className="flex h-6 w-6 items-center justify-center rounded-md bg-white/90 text-[#8b91b3] shadow-sm hover:text-[#4f46e5]"
+        >
+          <Pencil size={12} />
+        </button>
       </div>
-    </motion.button>
+    </motion.div>
+  )
+}
+
+function ShelfGrid({
+  items,
+  onOpen,
+  onEdit,
+  onToggleFavorite,
+  reorderable,
+  onReorder,
+}: {
+  items: UploadItem[]
+  onOpen: (item: UploadItem) => void
+  onEdit: (item: UploadItem) => void
+  onToggleFavorite: (item: UploadItem) => void
+  reorderable?: boolean
+  onReorder?: (activeId: string, overId: string) => void
+}) {
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [overId, setOverId] = useState<string | null>(null)
+
+  return (
+    <div className="relative rounded-2xl border border-[#e6e8f4] bg-gradient-to-b from-white/75 to-[#f0f1fa]/45 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
+      <div
+        className="pointer-events-none absolute inset-x-5 bottom-2.5 h-1.5 rounded-full bg-gradient-to-r from-transparent via-[#d4d7ec]/75 to-transparent blur-[1px]"
+        aria-hidden
+      />
+      <motion.div
+        initial="hidden"
+        animate="show"
+        variants={{
+          hidden: {},
+          show: { transition: { staggerChildren: 0.03 } },
+        }}
+        className="relative grid grid-cols-3 gap-x-3.5 gap-y-5 sm:grid-cols-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6"
+      >
+        {items.map((item) => (
+          <ShelfCard
+            key={item.upload_id}
+            item={item}
+            onOpen={() => onOpen(item)}
+            onEdit={() => onEdit(item)}
+            onToggleFavorite={() => onToggleFavorite(item)}
+            reorderable={reorderable}
+            dragging={draggingId === item.upload_id}
+            dragOver={overId === item.upload_id && draggingId !== item.upload_id}
+            onDragStart={(id) => {
+              setDraggingId(id)
+              setOverId(id)
+            }}
+            onDragOver={(id) => setOverId(id)}
+            onDrop={(id) => {
+              if (draggingId && draggingId !== id) onReorder?.(draggingId, id)
+              setDraggingId(null)
+              setOverId(null)
+            }}
+            onDragEnd={() => {
+              setDraggingId(null)
+              setOverId(null)
+            }}
+          />
+        ))}
+      </motion.div>
+    </div>
   )
 }
 
@@ -53,44 +250,22 @@ function PaneHeader({
   icon,
   title,
   count,
-  subtitle,
   trailing,
 }: {
   icon: ReactNode
   title: string
   count?: number
-  subtitle: string
   trailing?: ReactNode
 }) {
   return (
-    <div className="relative shrink-0 overflow-hidden border-b border-[#e4e6f2]">
-      <div
-        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white via-[#f4f5fc] to-[#eceef8]"
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none absolute -right-8 -top-10 h-24 w-24 rounded-full opacity-50 blur-2xl"
-        style={{ background: 'radial-gradient(circle, #cfd3f5 0%, transparent 70%)' }}
-        aria-hidden
-      />
-      <div className="relative flex min-h-[76px] items-center justify-between gap-3 px-4 py-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white text-[#4f46e5] shadow-[0_4px_12px_-6px_rgba(79,70,229,0.55)] ring-1 ring-[#e4e6f4]">
-              {icon}
-            </span>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h2 className="truncate text-[15px] font-bold tracking-wide text-ink">{title}</h2>
-                {typeof count === 'number' ? (
-                  <span className="rounded-full bg-[#4f46e5]/10 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-[#4f46e5]">
-                    {count}
-                  </span>
-                ) : null}
-              </div>
-              <p className="mt-0.5 truncate text-[12px] text-[#9aa0b8]">{subtitle}</p>
-            </div>
-          </div>
+    <div className={toolbarSurface}>
+      <div className={sectionToolbarInner}>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className={toolbarIconBox}>{icon}</span>
+          <h2 className="truncate text-[14px] font-semibold tracking-wide text-[#2f3358]">{title}</h2>
+          {typeof count === 'number' ? (
+            <span className={toolbarCountBadge}>{count}</span>
+          ) : null}
         </div>
         {trailing ? <div className="shrink-0">{trailing}</div> : null}
       </div>
@@ -100,11 +275,71 @@ function PaneHeader({
 
 export default function LibraryPage() {
   const navigate = useNavigate()
-  const { items, loading, error, setSelectedId } = useUploads()
-  const [shelfFilter, setShelfFilter] = useState<'all' | 'notes' | 'zh'>('all')
+  const { items, loading, error, setSelectedId, refresh } = useUploads()
+  const [filters, setFilters] = useState<ShelfFilters>(EMPTY_SHELF_FILTERS)
+  const [arrange, setArrange] = useState<ShelfArrange>('flat')
+  const [metaItem, setMetaItem] = useState<UploadItem | null>(null)
+  const [libraryOrder, setLibraryOrder] = useState<string[]>(() => loadLibraryOrder())
+  const autoIdentifyDone = useState(() => ({ current: false }))[0]
+  const [identifyBanner, setIdentifyBanner] = useState<string | null>(null)
+
+  useEffect(() => {
+    void reindexLibrary().catch(() => undefined)
+  }, [])
+
+  // Backfill identify for already-parsed papers missing metadata
+  useEffect(() => {
+    if (loading || autoIdentifyDone.current) return
+    const targets = items.filter((i) => canEnterReading(i) && needsIdentify(i)).slice(0, 8)
+    if (!targets.length) {
+      if (items.length > 0) autoIdentifyDone.current = true
+      return
+    }
+    autoIdentifyDone.current = true
+    let cancelled = false
+    void (async () => {
+      setIdentifyBanner(`正在补全元数据（0/${targets.length}）…`)
+      let ok = 0
+      let fail = 0
+      for (let i = 0; i < targets.length; i++) {
+        if (cancelled) break
+        try {
+          await identifyPaper(targets[i].upload_id, { force: false })
+          ok += 1
+        } catch {
+          fail += 1
+        }
+        if (!cancelled) {
+          setIdentifyBanner(`正在补全元数据（${i + 1}/${targets.length}）…`)
+        }
+      }
+      if (cancelled) return
+      await refresh()
+      if (fail === 0) {
+        setIdentifyBanner(ok > 0 ? `已补全 ${ok} 篇文献元数据` : null)
+      } else {
+        setIdentifyBanner(`元数据补全：成功 ${ok}，失败 ${fail}`)
+      }
+      window.setTimeout(() => setIdentifyBanner(null), 5000)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [items, loading, refresh, autoIdentifyDone])
 
   const readable = useMemo(() => items.filter(canEnterReading), [items])
   const pending = useMemo(() => items.filter((i) => !canEnterReading(i)), [items])
+
+  // Keep persisted order in sync with known readable papers
+  useEffect(() => {
+    const ids = readable.map((i) => i.upload_id)
+    setLibraryOrder((prev) => {
+      const next = syncLibraryOrder(prev, ids)
+      if (next.length === prev.length && next.every((id, i) => id === prev[i])) return prev
+      saveLibraryOrder(next)
+      return next
+    })
+  }, [readable])
 
   const recentPairs = useMemo(() => {
     const byId = new Map(readable.map((i) => [i.upload_id, i]))
@@ -117,22 +352,43 @@ export default function LibraryPage() {
   }, [readable])
 
   const shelfItems = useMemo(() => {
-    let list = [...readable]
-    if (shelfFilter === 'notes') list = list.filter((i) => hasNotesContent(i.upload_id))
-    if (shelfFilter === 'zh') list = list.filter((i) => i.has_zh)
-    const recentRank = new Map(listRecentReads().map((r, idx) => [r.uploadId, idx]))
-    list.sort((a, b) => {
-      const ra = recentRank.has(a.upload_id) ? recentRank.get(a.upload_id)! : 999
-      const rb = recentRank.has(b.upload_id) ? recentRank.get(b.upload_id)! : 999
-      if (ra !== rb) return ra - rb
-      return a.filename.localeCompare(b.filename, 'zh')
+    const list = applyShelfFilters([...readable], filters)
+    return sortByLibraryOrder(list, libraryOrder)
+  }, [readable, filters, libraryOrder])
+
+  const shelfGroups = useMemo(
+    () => groupShelfItems(shelfItems, arrange),
+    [shelfItems, arrange],
+  )
+
+  const onFiltersChange = (next: ShelfFilters) => {
+    setFilters(next)
+    // Linkage: first pick of year/type switches arrange mode
+    if (next.years.length > 0 && filters.years.length === 0) setArrange('year')
+    else if (next.venueTypes.length > 0 && filters.venueTypes.length === 0) setArrange('venue')
+  }
+
+  const onReorderShelf = (activeId: string, overId: string, scopeIds?: string[]) => {
+    const visibleIds = scopeIds ?? shelfItems.map((i) => i.upload_id)
+    setLibraryOrder((prev) => {
+      const next = moveVisibleInOrder(prev, visibleIds, activeId, overId)
+      saveLibraryOrder(next)
+      return next
     })
-    return list
-  }, [readable, shelfFilter])
+  }
 
   const openReading = (item: UploadItem) => {
     setSelectedId(item.upload_id)
     navigate(`/read/${item.upload_id}`)
+  }
+
+  const toggleFavorite = async (item: UploadItem) => {
+    try {
+      await setPaperFavorite(item.upload_id, !item.favorited)
+      await refresh()
+    } catch {
+      /* ignore */
+    }
   }
 
   const showDual = !loading && !error && readable.length > 0
@@ -142,8 +398,7 @@ export default function LibraryPage() {
   return (
     <div className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-[#e8e9f4] bg-[#f8f8fd]">
       <ListPageHero
-        title="书架"
-        subtitle="左侧继续上次阅读，右侧浏览全部文献。点封面进入阅读室。"
+        title="我的文献"
         action={
           <button
             type="button"
@@ -170,8 +425,14 @@ export default function LibraryPage() {
           aria-hidden
         />
 
+        {identifyBanner ? (
+          <p className="relative border-b border-[#eceef6] bg-[#fafbff] px-6 py-2.5 text-[12px] text-[#6a70a0]">
+            {identifyBanner}
+          </p>
+        ) : null}
+
         {loading && (
-          <p className="relative px-6 py-5 text-[14px] text-[#9aa0b8]">整理书架…</p>
+          <p className="relative px-6 py-5 text-[14px] text-[#9aa0b8]">整理文献…</p>
         )}
         {error && <p className="relative px-6 py-5 text-[14px] text-[#b45309]">{error}</p>}
 
@@ -188,7 +449,7 @@ export default function LibraryPage() {
             >
               <Library size={28} className="text-[#4f46e5]" />
             </motion.div>
-            <p className="mt-5 text-[16px] font-semibold text-ink">书架还是空的</p>
+            <p className="mt-5 text-[16px] font-semibold text-ink">还没有文献</p>
             <p className="mt-1.5 text-[14px] leading-relaxed text-[#9aa0b8]">
               先在工作区上传并完成版面分析，可阅读的文献会出现在这里。
             </p>
@@ -208,7 +469,7 @@ export default function LibraryPage() {
             animate={{ opacity: 1, y: 0 }}
             className="relative mx-auto max-w-lg px-4 py-14 text-center"
           >
-            <p className="text-[16px] font-semibold text-ink">还没有可上架的文献</p>
+            <p className="text-[16px] font-semibold text-ink">还没有可阅读的文献</p>
             <p className="mt-2 text-[14px] leading-relaxed text-[#9aa0b8]">
               有 {pending.length} 篇仍在解析或等待处理。去任务管理跟进进度后，即可在此阅读。
             </p>
@@ -225,22 +486,18 @@ export default function LibraryPage() {
         {showDual && (
           <div className="relative flex h-full min-h-0 flex-col">
             <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-2 md:overflow-hidden">
-              {/* Left: recent */}
               <aside className="flex max-h-[42vh] min-h-0 flex-col overflow-hidden border-[#e8e9f4] md:max-h-none md:border-r">
                 <PaneHeader
-                  icon={<Clock3 size={15} />}
+                  icon={<Clock3 size={13} />}
                   title="最近阅读"
                   count={recentPairs.length}
-                  subtitle={
-                    recentPairs.length > 0 ? '从这里继续上次打开的文献' : '打开文献后会出现在这里'
-                  }
                 />
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 [scrollbar-width:thin] [scrollbar-color:#c9cce4_transparent]">
                   {recentPairs.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-[#dfe1f4] bg-white/40 px-4 py-10 text-center">
                       <p className="text-[13px] font-medium text-[#6a70a0]">暂无最近阅读</p>
                       <p className="mt-1 text-[12px] leading-relaxed text-[#9aa0b8]">
-                        从右侧书架点开一篇，下次就能从这里继续。
+                        从右侧点开一篇，下次就能从这里继续。
                       </p>
                     </div>
                   ) : (
@@ -254,14 +511,16 @@ export default function LibraryPage() {
                       className="flex flex-col gap-2"
                     >
                       {recentPairs.map(({ item, openedAt }) => {
-                        const title = titleFromFilename(item.filename)
-                        const hasNotes = hasNotesContent(item.upload_id)
+                        const title = paperDisplayTitle(item)
+                        const hasNotes = itemHasNotes(item)
                         return (
                           <BookShelfRow
                             key={item.upload_id}
                             title={title}
                             uploadId={item.upload_id}
                             hasZh={item.has_zh}
+                            hasNotes={hasNotes}
+                            venue={item.venue}
                             subtitle={formatOpenedAt(openedAt)}
                             meta={`${item.has_zh ? '原文 · 译文' : '原文'}${hasNotes ? ' · 笔记' : ''}`}
                             onClick={() => openReading(item)}
@@ -273,71 +532,59 @@ export default function LibraryPage() {
                 </div>
               </aside>
 
-              {/* Right: full shelf */}
               <section className="flex min-h-0 min-w-0 flex-col overflow-hidden border-t border-[#e8e9f4] md:border-t-0">
                 <PaneHeader
-                  icon={<BookMarked size={15} />}
-                  title="全部书架"
-                  count={readable.length}
-                  subtitle={
-                    shelfFilter === 'notes'
-                      ? '仅显示含笔记的文献'
-                      : shelfFilter === 'zh'
-                        ? '仅显示已有译文的文献'
-                        : '点击封面进入阅读室'
-                  }
-                  trailing={
-                    <div className="flex flex-wrap justify-end gap-1">
-                      <MetaChip
-                        label="全部"
-                        value={readable.length}
-                        tone="neutral"
-                        active={shelfFilter === 'all'}
-                        onClick={() => setShelfFilter('all')}
-                      />
-                      <MetaChip
-                        label="笔记"
-                        value={readable.filter((i) => hasNotesContent(i.upload_id)).length}
-                        tone="accent"
-                        active={shelfFilter === 'notes'}
-                        onClick={() => setShelfFilter('notes')}
-                      />
-                      <MetaChip
-                        label="译文"
-                        value={readable.filter((i) => i.has_zh).length}
-                        tone="muted"
-                        active={shelfFilter === 'zh'}
-                        onClick={() => setShelfFilter('zh')}
-                      />
-                    </div>
-                  }
+                  icon={<BookMarked size={13} />}
+                  title="全部文献"
+                  count={shelfItems.length}
+                />
+                <ShelfFilterBar
+                  items={readable}
+                  filters={filters}
+                  onChange={onFiltersChange}
+                  arrange={arrange}
+                  onArrangeChange={setArrange}
                 />
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 [scrollbar-width:thin] [scrollbar-color:#c9cce4_transparent]">
                   {shelfItems.length === 0 ? (
                     <p className="py-16 text-center text-[14px] text-[#9aa0b8]">没有符合筛选的文献</p>
+                  ) : arrange === 'flat' ? (
+                    <ShelfGrid
+                      items={shelfItems}
+                      onOpen={openReading}
+                      onEdit={setMetaItem}
+                      onToggleFavorite={(item) => void toggleFavorite(item)}
+                      reorderable
+                      onReorder={onReorderShelf}
+                    />
                   ) : (
-                    <div className="relative rounded-2xl border border-[#e6e8f4] bg-gradient-to-b from-white/75 to-[#f0f1fa]/45 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
-                      <div
-                        className="pointer-events-none absolute inset-x-5 bottom-2.5 h-1.5 rounded-full bg-gradient-to-r from-transparent via-[#d4d7ec]/75 to-transparent blur-[1px]"
-                        aria-hidden
-                      />
-                      <motion.div
-                        initial="hidden"
-                        animate="show"
-                        variants={{
-                          hidden: {},
-                          show: { transition: { staggerChildren: 0.03 } },
-                        }}
-                        className="relative grid grid-cols-4 gap-x-2.5 gap-y-4 sm:grid-cols-5 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7"
-                      >
-                        {shelfItems.map((item) => (
-                          <ShelfCard
-                            key={item.upload_id}
-                            item={item}
-                            onOpen={() => openReading(item)}
+                    <div className="flex flex-col gap-5">
+                      {shelfGroups.map((group) => (
+                        <section key={group.key} className="min-w-0">
+                          <div className="mb-2.5 flex items-baseline gap-2 px-0.5">
+                            <h3 className="text-[13px] font-bold tracking-wide text-[#2f3358]">
+                              {group.label}
+                            </h3>
+                            <span className="text-[11px] font-semibold tabular-nums text-[#9aa0b8]">
+                              {group.items.length}
+                            </span>
+                          </div>
+                          <ShelfGrid
+                            items={group.items}
+                            onOpen={openReading}
+                            onEdit={setMetaItem}
+                            onToggleFavorite={(item) => void toggleFavorite(item)}
+                            reorderable
+                            onReorder={(activeId, overId) =>
+                              onReorderShelf(
+                                activeId,
+                                overId,
+                                group.items.map((i) => i.upload_id),
+                              )
+                            }
                           />
-                        ))}
-                      </motion.div>
+                        </section>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -348,7 +595,7 @@ export default function LibraryPage() {
               <div className="shrink-0 border-t border-[#e8e9f4] bg-white/70 px-4 py-2.5 backdrop-blur-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-[13px] text-[#6a70a0]">
-                    还有 <span className="font-semibold text-ink">{pending.length}</span> 篇尚未上架
+                    还有 <span className="font-semibold text-ink">{pending.length}</span> 篇尚未就绪
                   </p>
                   <Link
                     to="/tasks"
@@ -363,6 +610,15 @@ export default function LibraryPage() {
           </div>
         )}
       </div>
+
+      <PaperMetaDialog
+        item={metaItem}
+        open={Boolean(metaItem)}
+        onOpenChange={(open) => {
+          if (!open) setMetaItem(null)
+        }}
+        onSaved={() => void refresh()}
+      />
     </div>
   )
 }

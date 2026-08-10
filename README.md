@@ -128,6 +128,20 @@ uvicorn start_api.main:app --reload --port 8080
 - 健康检查：http://127.0.0.1:8080/api/v1/health（`mineru` 应为 `up`）
 - 可选环境变量：`MINERU_API_URL`、`DEEPSEEK_API_KEY`、`START_DATA_DIR`
 
+结构化数据（笔记 / 文献元数据 / 标签 / 收藏 / 检索索引）存在 `START_DATA_DIR/start.db`（SQLite）；PDF 与解析产物仍在 `uploads/`、`tasks/` 目录。默认数据目录为 `services/api/.data`（可用环境变量 `START_DATA_DIR` 覆盖）。设置页「运行状态」也会显示当前路径。
+
+**备份数据目录：**
+
+```powershell
+# 默认打包 services/api/.data → backups/start-data-<时间戳>.zip
+.\scripts\backup-data.ps1
+
+# 或指定目录
+.\scripts\backup-data.ps1 -DataDir $env:START_DATA_DIR
+```
+
+恢复：先停 BFF，将 zip 解压覆盖到数据目录后再启动。
+
 ---
 
 ### 3. Web（`apps/web`）

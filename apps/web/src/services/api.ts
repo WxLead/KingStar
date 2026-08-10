@@ -22,6 +22,48 @@ export type UploadItem = {
   /** True when document_zh.md exists for last_task_id. */
   has_zh?: boolean
   pipeline_stage?: PipelineStage
+  /** Library fields from SQLite */
+  has_notes?: boolean
+  favorited?: boolean
+  favorited_at?: string | null
+  title?: string | null
+  authors?: string[]
+  year?: number | null
+  doi?: string | null
+  abstract?: string | null
+  venue?: string | null
+  venue_type?: string | null
+  metadata_source?: string | null
+  arxiv_id?: string | null
+  folder?: string | null
+  tags?: string[]
+}
+
+export type NoteDocRemote = {
+  upload_id: string
+  html: string
+  json?: unknown
+  updated_at: number
+}
+
+export type PaperLibrary = {
+  upload_id: string
+  title?: string | null
+  authors?: string[]
+  year?: number | null
+  doi?: string | null
+  abstract?: string | null
+  venue?: string | null
+  venue_type?: string | null
+  metadata_source?: string | null
+  metadata_identified_at?: string | null
+  arxiv_id?: string | null
+  favorited?: boolean
+  favorited_at?: string | null
+  folder?: string | null
+  tags?: string[]
+  has_notes?: boolean
+  updated_at?: string | null
 }
 
 export type TaskSummary = {
@@ -267,8 +309,21 @@ export async function ensureLinkZh(taskId: string): Promise<void> {
   }
 }
 
-export function health(): Promise<{ ok: boolean; mineru: string; translate: string }> {
+export type HealthStatus = {
+  ok: boolean
+  mineru: string
+  translate: string
+  llm?: string
+  data_dir?: string
+}
+
+export function health(): Promise<HealthStatus> {
   return request('/health')
+}
+
+/** Re-run a failed/interrupted task with the same options. */
+export async function retryTask(taskId: string): Promise<{ task_id: string; status: TaskStatus }> {
+  return request(`/tasks/${taskId}/retry`, { method: 'POST' })
 }
 
 export type LlmSettingsPublic = {
@@ -477,4 +532,158 @@ export function formatUploadTime(iso: string): string {
   if (Number.isNaN(d.getTime())) return iso
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+/** Display title: library metadata title, else filename stem. */
+export function paperDisplayTitle(item: Pick<UploadItem, 'filename' | 'title'>): string {
+  const t = (item.title || '').trim()
+  if (t) return t
+  const base = item.filename.replace(/\.[^.]+$/, '').trim()
+  return base || item.filename || '未命名文献'
+}
+
+export async function getNotes(uploadId: string): Promise<NoteDocRemote> {
+  return request(`/uploads/${uploadId}/notes`)
+}
+
+export async function putNotes(
+  uploadId: string,
+  body: { html: string; json?: unknown; updated_at?: number },
+): Promise<NoteDocRemote> {
+  return request(`/uploads/${uploadId}/notes`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export type AnnotationsRemote = {
+  upload_id: string
+  items: unknown[]
+  updated_at: number
+}
+
+export async function getAnnotations(uploadId: string): Promise<AnnotationsRemote> {
+  return request(`/uploads/${uploadId}/annotations`)
+}
+
+export async function putAnnotations(
+  uploadId: string,
+  body: { items: unknown[]; updated_at?: number },
+): Promise<AnnotationsRemote> {
+  return request(`/uploads/${uploadId}/annotations`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function getPaperLibrary(uploadId: string): Promise<PaperLibrary> {
+  return request(`/uploads/${uploadId}/library`)
+}
+
+export async function patchPaperLibrary(
+  uploadId: string,
+  patch: Partial<{
+    title: string | null
+    authors: string[]
+    year: number | null
+    doi: string | null
+    abstract: string | null
+    venue: string | null
+    venue_type: string | null
+    folder: string | null
+    favorited: boolean
+    tags: string[]
+  }>,
+): Promise<PaperLibrary> {
+  return request(`/uploads/${uploadId}/library`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+}
+
+export async function identifyPaper(
+  uploadId: string,
+  opts?: { force?: boolean },
+): Promise<{
+  ok: boolean
+  skipped?: boolean
+  matched_by?: string | null
+  detail?: string
+  paper?: PaperLibrary
+}> {
+  return request(`/uploads/${uploadId}/identify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ force: opts?.force ?? false }),
+  })
+}
+
+export async function setPaperFavorite(
+  uploadId: string,
+  favorited: boolean,
+): Promise<PaperLibrary> {
+  return request(`/uploads/${uploadId}/favorite`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ favorited }),
+  })
+}
+
+export async function setPaperTags(uploadId: string, tags: string[]): Promise<PaperLibrary> {
+  return request(`/uploads/${uploadId}/tags`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tags }),
+  })
+}
+
+export async function listLibraryTags(): Promise<{ items: string[] }> {
+  return request('/library/tags')
+}
+
+export async function searchLibrary(q: string): Promise<{ query: string; upload_ids: string[] }> {
+  const params = new URLSearchParams({ q })
+  return request(`/library/search?${params}`)
+}
+
+export async function reindexLibrary(): Promise<{ ok: boolean; indexed: number }> {
+  return request('/library/reindex', { method: 'POST' })
+}
+
+/** Fetch citation text for one paper (server-side, latest DB metadata). */
+export async function fetchCitationText(
+  uploadId: string,
+  format: 'bibtex' | 'ris' = 'bibtex',
+): Promise<string> {
+  const res = await fetch(
+    `${API_BASE}/uploads/${uploadId}/citation?format=${encodeURIComponent(format)}`,
+  )
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '')
+    throw new Error(detail || `citation failed (${res.status})`)
+  }
+  return res.text()
+}
+
+/** Batch citation export from server. Empty uploadIds = all uploads. */
+export async function exportLibraryCitations(opts: {
+  format: 'bibtex' | 'ris'
+  uploadIds?: string[]
+}): Promise<string> {
+  const res = await fetch(`${API_BASE}/library/citations/export`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      format: opts.format,
+      upload_ids: opts.uploadIds ?? null,
+    }),
+  })
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '')
+    throw new Error(detail || `export failed (${res.status})`)
+  }
+  return res.text()
 }

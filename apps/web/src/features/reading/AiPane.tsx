@@ -126,10 +126,10 @@ function extractErrorMessage(err: unknown): string {
 function ContextMeter({ usage }: { usage: ReadingChatUsage | null }) {
   if (!usage || !usage.budget) {
     return (
-      <div className="flex shrink-0 items-center gap-2 border-b border-[#eceef6] bg-white/50 px-4 py-1.5">
-        <span className="text-[11px] text-[#9aa0b8]">上下文</span>
-        <div className="h-1 flex-1 overflow-hidden rounded-full bg-[#e8eaf4]" />
-        <span className="text-[11px] tabular-nums text-[#9aa0b8]">—</span>
+      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-[#eceef6] bg-[#f3f4fb] px-4">
+        <span className="text-[12px] font-semibold text-[#9aa0b8]">上下文</span>
+        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#e8eaf4]" />
+        <span className="text-[12px] tabular-nums text-[#9aa0b8]">—</span>
       </div>
     )
   }
@@ -140,14 +140,14 @@ function ContextMeter({ usage }: { usage: ReadingChatUsage | null }) {
     pct >= 90 ? 'bg-[#dc2626]' : pct >= 70 ? 'bg-[#d97706]' : 'bg-[#4f46e5]'
   return (
     <div
-      className="flex shrink-0 items-center gap-2.5 border-b border-[#eceef6] bg-white/50 px-4 py-1.5"
+      className="flex h-10 shrink-0 items-center gap-2.5 border-b border-[#eceef6] bg-[#f3f4fb] px-4"
       title={`约 ${usage.used.toLocaleString()} / ${usage.budget.toLocaleString()} tokens`}
     >
-      <span className="shrink-0 text-[11px] font-medium text-[#9aa0b8]">上下文</span>
+      <span className="shrink-0 text-[12px] font-semibold text-[#9aa0b8]">上下文</span>
       <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[#e8eaf4]">
         <div className={`h-full rounded-full transition-all ${bar}`} style={{ width: `${pct}%` }} />
       </div>
-      <span className={`shrink-0 text-[11px] font-semibold tabular-nums ${tone}`}>{pct.toFixed(0)}%</span>
+      <span className={`shrink-0 text-[12px] font-semibold tabular-nums ${tone}`}>{pct.toFixed(0)}%</span>
     </div>
   )
 }

@@ -40,7 +40,7 @@ import {
   notesExportFilename,
   tipTapJsonToMarkdown,
 } from '@/features/reading/notesExportMarkdown'
-import { loadNoteHtml, saveNoteDoc } from '@/features/reading/notesStorage'
+import { saveNoteDoc, fetchNoteDoc } from '@/features/reading/notesStorage'
 import {
   aiMarkdownToCalloutJSON,
   registerNotesImportHandler,
@@ -259,6 +259,7 @@ export function NotesPane({
   onCollapse?: () => void
 }) {
   const [savedAt, setSavedAt] = useState<number | null>(null)
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'local'>('idle')
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const readyRef = useRef(false)
   const uploadIdRef = useRef(uploadId)
@@ -330,35 +331,53 @@ export function NotesPane({
       const html = ed.getHTML()
       const json = ed.getJSON()
       if (saveTimer.current) clearTimeout(saveTimer.current)
+      setSaveState('saving')
       saveTimer.current = setTimeout(() => {
-        saveNoteDoc(uploadIdRef.current, html, json)
-        setSavedAt(Date.now())
+        void (async () => {
+          const result = await saveNoteDoc(uploadIdRef.current, html, json)
+          setSavedAt(result.updatedAt)
+          setSaveState(result.localOnly ? 'local' : 'saved')
+        })()
       }, 400)
     },
   })
 
   useEffect(() => {
     if (!editor) return
+    let cancelled = false
     readyRef.current = false
-    const html = loadNoteHtml(uploadId)
-    editor.commands.setContent(html || '', { emitUpdate: false })
-    setSavedAt(html ? Date.now() : null)
-    // Backfill TipTap JSON so library list can export Markdown accurately
-    if (html.trim()) {
-      saveNoteDoc(uploadId, editor.getHTML(), editor.getJSON())
+
+    void (async () => {
+      const doc = await fetchNoteDoc(uploadId)
+      if (cancelled || !editor || editor.isDestroyed) return
+      const html = doc?.html || ''
+      editor.commands.setContent(html || '', { emitUpdate: false })
+      setSavedAt(html ? doc?.updatedAt || Date.now() : null)
+      setSaveState(html ? 'saved' : 'idle')
+      readyRef.current = true
+    })()
+
+    const persistNow = () => {
+      if (!editor || editor.isDestroyed || !readyRef.current) return
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current)
+        saveTimer.current = null
+      }
+      void saveNoteDoc(uploadId, editor.getHTML(), editor.getJSON())
     }
-    readyRef.current = true
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') persistNow()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    window.addEventListener('beforeunload', persistNow)
 
     const unregister = registerNotesImportHandler(({ markdown, title }) => {
       try {
         if (!editor || editor.isDestroyed) return false
         const nodes = aiMarkdownToCalloutJSON(markdown, title || 'AI 摘录')
         if (!nodes.length) return false
-        // Append via setContent — avoids insertContentAt/focus position races
-        // with Placeholder decorations and atom node views.
         const doc = editor.getJSON()
         const prev = Array.isArray(doc.content) ? [...doc.content] : []
-        // Drop a trailing empty paragraph so we don't stack blanks
         if (prev.length) {
           const last = prev[prev.length - 1]
           if (
@@ -380,8 +399,12 @@ export function NotesPane({
     })
 
     return () => {
+      cancelled = true
       unregister()
-      if (saveTimer.current) clearTimeout(saveTimer.current)
+      document.removeEventListener('visibilitychange', onVis)
+      window.removeEventListener('beforeunload', persistNow)
+      persistNow()
+      readyRef.current = false
     }
   }, [editor, uploadId])
 
@@ -430,12 +453,16 @@ export function NotesPane({
         title="笔记"
         onCollapse={onCollapse}
         meta={
-          savedAt
-            ? `已保存 ${new Date(savedAt).toLocaleTimeString('zh-CN', {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}`
-            : '实时排版 · 自动保存'
+          saveState === 'saving'
+            ? '保存中…'
+            : saveState === 'local'
+              ? '仅本地缓存（服务器未同步）'
+              : savedAt
+                ? `已保存 ${new Date(savedAt).toLocaleTimeString('zh-CN', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}`
+                : '实时排版 · 自动保存'
         }
         actions={
           <button
@@ -455,7 +482,7 @@ export function NotesPane({
       />
 
       {editor ? (
-        <div className="flex shrink-0 flex-wrap items-center gap-0.5 border-b border-[#eceef6] bg-[#f3f4fb] px-2 py-1.5">
+        <div className="flex h-10 shrink-0 flex-wrap items-center gap-0.5 border-b border-[#eceef6] bg-[#f3f4fb] px-2">
           <ToolBtn
             title="粗体 (Ctrl/⌘+B)"
             active={editor.isActive('bold')}

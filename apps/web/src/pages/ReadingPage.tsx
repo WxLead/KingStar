@@ -40,7 +40,7 @@ export default function ReadingPage() {
             onClick={() => navigate('/library')}
             className="rounded-xl bg-[#4f46e5] px-4 py-2 text-[13px] font-semibold text-white"
           >
-            回书架
+            回文献
           </button>
           <Link to="/" className="rounded-xl border border-[#e4e6f0] bg-white px-4 py-2 text-[13px] font-semibold text-ink-soft">
             工作区

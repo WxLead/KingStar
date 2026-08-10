@@ -259,6 +259,62 @@
   border-radius: 0.25rem;
 }
 
+/* In-document find highlights (literature pane) */
+.md-render mark.doc-find-hit {
+  background: #fde68a;
+  color: inherit;
+  border-radius: 0.15em;
+  padding: 0.05em 0;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.md-render mark.doc-find-hit.doc-find-current {
+  background: #f59e0b;
+  color: #1e2a52;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.35);
+}
+
+/* Persistent reading annotations */
+.md-render mark.anno-hit {
+  color: inherit;
+  border-radius: 0.15em;
+  padding: 0.05em 0;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  cursor: pointer;
+}
+.md-render mark.anno-hit.anno-yellow {
+  background: rgba(250, 204, 21, 0.45);
+}
+.md-render mark.anno-hit.anno-green {
+  background: rgba(52, 211, 153, 0.35);
+}
+.md-render mark.anno-hit.anno-blue {
+  background: rgba(96, 165, 250, 0.4);
+}
+.md-render mark.anno-hit.anno-pink {
+  background: rgba(244, 114, 182, 0.35);
+}
+.md-render mark.anno-hit.anno-current {
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.35);
+}
+
+/* Temporary selection takeover (hides native browser selection chrome) */
+.md-render {
+  -webkit-touch-callout: none;
+}
+.md-render mark.anno-draft {
+  background: rgba(250, 204, 21, 0.4);
+  color: inherit;
+  border-radius: 0.15em;
+  padding: 0.05em 0;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.md-render ::selection {
+  background: rgba(250, 204, 21, 0.35);
+}
+
 /* Bidirectional hover between PDF box and MD segment */
 .md-seg-hot {
   background: color-mix(in srgb, var(--seg-color) 14%, transparent);
@@ -429,3 +485,8 @@
 }
 
 
+
+/* Reading room panel collapse / expand */
+.reading-panels:not(.is-resizing) > [data-panel] {
+  transition: flex-grow 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}

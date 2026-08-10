@@ -10,7 +10,7 @@ import {
   Loader2,
   RefreshCw,
   Settings2,
-  ChevronRight,
+  Activity,
 } from 'lucide-react'
 import { Kbd } from '@/components/ui/kbd'
 import {
@@ -32,8 +32,10 @@ import {
 } from '@/features/settings/keyboardShortcuts'
 import {
   getLlmSettings,
+  health,
   listLlmModels,
   saveLlmSettings,
+  type HealthStatus,
   type LlmSettingsPublic,
 } from '@/services/api'
 
@@ -59,11 +61,15 @@ function SettingsEntry({
   title,
   summary,
   onConfigure,
+  actionLabel = '配置',
+  actionIcon,
 }: {
   icon: React.ReactNode
   title: string
   summary: React.ReactNode
   onConfigure: () => void
+  actionLabel?: string
+  actionIcon?: React.ReactNode
 }) {
   return (
     <button
@@ -79,9 +85,8 @@ function SettingsEntry({
         <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-2">{summary}</div>
       </div>
       <span className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-[#e4e6f0] bg-white px-3.5 text-[13px] font-semibold text-[#6a70a0] transition group-hover:border-[#c7c9ef] group-hover:text-[#4f46e5]">
-        <Settings2 size={14} />
-        配置
-        <ChevronRight size={14} className="opacity-50" />
+        {actionIcon ?? <Settings2 size={14} />}
+        {actionLabel}
       </span>
     </button>
   )
@@ -485,12 +490,77 @@ function SummaryChip({ children }: { children: React.ReactNode }) {
   )
 }
 
+function statusTone(ok: boolean): string {
+  return ok
+    ? 'bg-[#ecfdf5] text-[#059669]'
+    : 'bg-[#fff7ed] text-[#c2410c]'
+}
+
+function llmLabel(llm?: string): { text: string; ok: boolean } {
+  if (llm === 'configured') return { text: '已配置', ok: true }
+  if (llm === 'unset') return { text: '未配置', ok: false }
+  return { text: '未知', ok: false }
+}
+
+function HealthSummary({
+  status,
+  loading,
+  error,
+}: {
+  status: HealthStatus | null
+  loading: boolean
+  error: string | null
+}) {
+  if (error) return <span className="text-[12px] text-[#b45309]">{error}</span>
+  if (loading && !status) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[12px] text-[#9aa0b8]">
+        <Loader2 size={12} className="animate-spin" />
+        检查中…
+      </span>
+    )
+  }
+  const mineruOk = status?.mineru === 'up'
+  const translateOk = status?.translate === 'ready'
+  const llm = llmLabel(status?.llm)
+  return (
+    <>
+      <span className={`rounded-full px-2.5 py-0.5 text-[12px] font-medium ${statusTone(mineruOk)}`}>
+        MinerU {mineruOk ? '正常' : status?.mineru === 'down' ? '离线' : '未知'}
+      </span>
+      <span className={`rounded-full px-2.5 py-0.5 text-[12px] font-medium ${statusTone(translateOk)}`}>
+        翻译 {translateOk ? '就绪' : '缺失'}
+      </span>
+      <span className={`rounded-full px-2.5 py-0.5 text-[12px] font-medium ${statusTone(llm.ok)}`}>
+        LLM {llm.text}
+      </span>
+    </>
+  )
+}
+
 export default function SettingsPage() {
   const shortcuts = useKeyboardShortcuts()
   const [llmMeta, setLlmMeta] = useState<LlmSettingsPublic | null>(null)
   const [llmLoading, setLlmLoading] = useState(true)
   const [llmOpen, setLlmOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [healthStatus, setHealthStatus] = useState<HealthStatus | null>(null)
+  const [healthLoading, setHealthLoading] = useState(true)
+  const [healthError, setHealthError] = useState<string | null>(null)
+
+  const loadHealth = useCallback(async () => {
+    setHealthLoading(true)
+    setHealthError(null)
+    try {
+      const h = await health()
+      setHealthStatus(h)
+    } catch (e) {
+      setHealthStatus(null)
+      setHealthError(e instanceof Error ? e.message : '健康检查失败')
+    } finally {
+      setHealthLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -510,9 +580,13 @@ export default function SettingsPage() {
     }
   }, [])
 
+  useEffect(() => {
+    void loadHealth()
+  }, [loadHealth])
+
   return (
     <div className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-[#e8e9f4] bg-[#f8f8fd]">
-      <ListPageHero title="通用设置" subtitle="AI 接口与快捷键" />
+      <ListPageHero title="通用设置" />
 
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
         <motion.div
@@ -521,6 +595,27 @@ export default function SettingsPage() {
           transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
           className="overflow-hidden rounded-2xl border border-[#e8e9f4] bg-white shadow-sm"
         >
+          <SettingsEntry
+            icon={<Activity size={18} />}
+            title="运行状态"
+            onConfigure={() => void loadHealth()}
+            actionLabel={healthLoading ? '刷新中' : '刷新'}
+            actionIcon={
+              healthLoading ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <RefreshCw size={14} />
+              )
+            }
+            summary={
+              <HealthSummary
+                status={healthStatus}
+                loading={healthLoading}
+                error={healthError}
+              />
+            }
+          />
+
           <SettingsEntry
             icon={<Sparkles size={18} />}
             title="AI API"

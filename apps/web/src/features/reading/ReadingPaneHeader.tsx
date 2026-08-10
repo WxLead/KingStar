@@ -1,5 +1,5 @@
 /** Shared pane chrome for reading room columns. */
-import { PanelLeftClose } from 'lucide-react'
+import { ChevronRight, PanelLeftClose } from 'lucide-react'
 
 export default function ReadingPaneHeader({
   title,
@@ -58,18 +58,57 @@ export function CollapsedPaneRail({
     <button
       type="button"
       onClick={onExpand}
-      className="group flex h-full w-full min-w-[44px] flex-col items-center gap-3 overflow-hidden border-r border-[#e8e9f4] bg-gradient-to-b from-white to-[#f3f4fb] py-4 transition hover:bg-[#eef0fb]"
+      className="group relative flex h-full w-full flex-col items-center justify-center gap-4 overflow-hidden bg-[#f4f5fb] transition-colors duration-200 hover:bg-[#eef0fb]"
       aria-label={`展开${label}`}
     >
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#eef0fb] text-[#4f46e5] transition group-hover:bg-[#4f46e5] group-hover:text-white">
-        <PanelLeftClose size={14} className="rotate-180" />
+      <span
+        aria-hidden
+        className="absolute inset-y-3 left-1/2 w-px -translate-x-1/2 bg-[#e4e6f0] transition group-hover:bg-[#c7c9ef]"
+      />
+      <span className="relative z-[1] flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#8b91b3] shadow-sm ring-1 ring-[#e8e9f4] transition duration-200 group-hover:text-[#4f46e5] group-hover:ring-[#c7c9ef]">
+        <ChevronRight size={15} strokeWidth={2.25} className="translate-x-px" />
       </span>
       <span
-        className="font-display shrink-0 text-[14px] font-semibold tracking-wide text-[#4a5080] group-hover:text-[#4f46e5]"
-        style={{ writingMode: 'vertical-rl' }}
+        className="relative z-[1] font-display text-[13px] font-semibold tracking-[0.28em] text-[#6a70a0] transition-colors duration-200 group-hover:text-[#4f46e5]"
+        style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
       >
         {label}
       </span>
     </button>
+  )
+}
+
+/** Keep pane content mounted; crossfade with collapsed rail for smoother collapse. */
+export function PaneFrame({
+  collapsed,
+  label,
+  onExpand,
+  children,
+}: {
+  collapsed: boolean
+  label: string
+  onExpand: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <div className="relative h-full w-full min-w-0 overflow-hidden">
+      <div
+        className={`h-full w-full will-change-[opacity,transform] transition-[opacity,transform] duration-200 ease-out ${
+          collapsed
+            ? 'pointer-events-none absolute inset-0 scale-[0.98] opacity-0'
+            : 'relative opacity-100'
+        }`}
+        aria-hidden={collapsed}
+      >
+        {children}
+      </div>
+      <div
+        className={`absolute inset-0 z-20 will-change-opacity transition-opacity duration-200 ease-out ${
+          collapsed ? 'opacity-100' : 'pointer-events-none opacity-0'
+        }`}
+      >
+        <CollapsedPaneRail label={label} onExpand={onExpand} />
+      </div>
+    </div>
   )
 }

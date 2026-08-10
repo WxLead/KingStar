@@ -1,4 +1,3 @@
-import { hasNotesContent } from '@/features/reading/notesStorage'
 import { X } from 'lucide-react'
 
 export function titleFromFilename(filename: string): string {
@@ -17,6 +16,118 @@ const COVER_PALETTES = [
   { from: '#44337a', to: '#553c9a', accent: '#e9d8fd' },
 ]
 
+/** Common venue → short label */
+const VENUE_ALIASES: Array<{ re: RegExp; abbr: string }> = [
+  { re: /robotics:\s*science\s*(and|&)\s*systems|\brss\b/i, abbr: 'RSS' },
+  { re: /neurips|neural information processing systems|\bnips\b/i, abbr: 'NeurIPS' },
+  { re: /international conference on machine learning|\bicml\b/i, abbr: 'ICML' },
+  { re: /international conference on learning representations|\biclr\b/i, abbr: 'ICLR' },
+  { re: /computer vision and pattern recognition|\bcvpr\b/i, abbr: 'CVPR' },
+  { re: /international conference on computer vision|\biccv\b/i, abbr: 'ICCV' },
+  { re: /european conference on computer vision|\beccv\b/i, abbr: 'ECCV' },
+  { re: /\baaai\b/i, abbr: 'AAAI' },
+  { re: /\bijcai\b/i, abbr: 'IJCAI' },
+  { re: /association for computational linguistics|\bacl\b/i, abbr: 'ACL' },
+  { re: /\bemnlp\b/i, abbr: 'EMNLP' },
+  { re: /\bnaacl\b/i, abbr: 'NAACL' },
+  { re: /\bchi\b|human factors in computing/i, abbr: 'CHI' },
+  { re: /\buist\b/i, abbr: 'UIST' },
+  { re: /\bsiggraph\b/i, abbr: 'SIGGRAPH' },
+  { re: /\biros\b/i, abbr: 'IROS' },
+  { re: /\bicra\b/i, abbr: 'ICRA' },
+  { re: /conference on robot learning|\bcorl\b/i, abbr: 'CoRL' },
+  { re: /\bicoil\b|\bicoRL\b/i, abbr: 'CoRL' },
+  { re: /\bnature\b/i, abbr: 'Nature' },
+  { re: /\bscience\b(?!\s*and\s*systems)/i, abbr: 'Science' },
+  { re: /\bcell\b/i, abbr: 'Cell' },
+  { re: /proceedings of the (ieee|acm)/i, abbr: 'IEEE' },
+  { re: /\barxiv\b/i, abbr: 'arXiv' },
+  { re: /transactions on pattern analysis|\btpami\b/i, abbr: 'TPAMI' },
+  { re: /journal of machine learning research|\bjmlr\b/i, abbr: 'JMLR' },
+]
+
+const STOP = new Set([
+  'a',
+  'an',
+  'the',
+  'of',
+  'on',
+  'and',
+  'for',
+  'in',
+  'to',
+  'with',
+  'by',
+  'at',
+  'from',
+  'via',
+  'into',
+  'international',
+  'conference',
+  'symposium',
+  'workshop',
+  'proceedings',
+  'journal',
+  'transactions',
+  'annual',
+  'ieee',
+  'acm',
+  'volume',
+  'vol',
+  'part',
+])
+
+/** Abbreviate journal / conference name for cover badge. */
+export function venueAbbreviation(venue?: string | null): string | null {
+  const raw = (venue || '').trim()
+  if (!raw) return null
+
+  for (const { re, abbr } of VENUE_ALIASES) {
+    if (re.test(raw)) return abbr
+  }
+
+  // Already a short acronym-like token
+  const compact = raw.replace(/\s+/g, '')
+  if (/^[A-Za-z][A-Za-z0-9.+-]{1,7}$/.test(compact) && compact === compact.toUpperCase()) {
+    return compact.slice(0, 8)
+  }
+  if (/^[A-Za-z]{2,8}$/.test(raw) && raw.length <= 8) {
+    return raw
+  }
+
+  // Strip year / parentheses content
+  let cleaned = raw
+    .replace(/\(([^)]*)\)/g, ' ')
+    .replace(/\b(19|20)\d{2}\b/g, ' ')
+    .replace(/[,:;|/]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  const words = cleaned
+    .split(/\s+/)
+    .map((w) => w.replace(/[^A-Za-z0-9+.-]/g, ''))
+    .filter((w) => w.length > 0 && !STOP.has(w.toLowerCase()))
+
+  if (!words.length) {
+    return raw.slice(0, 6)
+  }
+
+  // Prefer initials when multiple words
+  if (words.length >= 2) {
+    const initials = words
+      .map((w) => w[0])
+      .join('')
+      .toUpperCase()
+    if (initials.length >= 2) return initials.slice(0, 6)
+  }
+
+  // Single long word: take leading capitals or first 5–6 chars
+  const one = words[0]
+  const caps = one.replace(/[^A-Z]/g, '')
+  if (caps.length >= 2 && caps.length <= 6) return caps
+  return one.slice(0, 6)
+}
+
 function coverPalette(seed: string) {
   let h = 0
   for (let i = 0; i < seed.length; i += 1) h = (h * 31 + seed.charCodeAt(i)) >>> 0
@@ -26,31 +137,36 @@ function coverPalette(seed: string) {
 export function BookCover({
   title,
   uploadId,
-  hasZh,
-  hasNotes,
+  venue,
   size = 'md',
 }: {
   title: string
   uploadId: string
-  hasZh: boolean
-  hasNotes: boolean
-  size?: 'sm' | 'md'
+  /** Journal / conference name — shown as abbreviation badge */
+  venue?: string | null
+  size?: 'sm' | 'md' | 'lg'
 }) {
   const palette = coverPalette(uploadId + title)
   const initial = title.slice(0, 1).toUpperCase() || 'S'
   const compact = size === 'sm'
+  const large = size === 'lg'
+  const venueAbbr = venueAbbreviation(venue)
 
   return (
     <div
       className={`relative overflow-hidden shadow-[0_5px_14px_-8px_rgba(30,42,82,0.42)] ${
-        compact ? 'aspect-[2/3] w-10 shrink-0 rounded-md' : 'aspect-[2/3] w-full rounded-md'
+        compact
+          ? 'aspect-[2/3] w-10 shrink-0 rounded-md'
+          : large
+            ? 'aspect-[5/7] w-full rounded-lg'
+            : 'aspect-[2/3] w-full rounded-md'
       }`}
       style={{
         background: `linear-gradient(155deg, ${palette.from} 0%, ${palette.to} 72%, ${palette.accent}55 100%)`,
       }}
     >
       <div
-        className={`absolute inset-y-0 left-0 opacity-80 ${compact ? 'w-0.5' : 'w-1'}`}
+        className={`absolute inset-y-0 left-0 opacity-80 ${compact ? 'w-0.5' : large ? 'w-1.5' : 'w-1'}`}
         style={{
           background: `linear-gradient(180deg, ${palette.accent}88, transparent 40%, ${palette.accent}44)`,
         }}
@@ -61,27 +177,53 @@ export function BookCover({
         aria-hidden
       />
       {!compact ? (
-        <div className="flex h-full flex-col justify-between p-1.5 pl-2.5">
+        <div
+          className={`flex h-full flex-col justify-between ${
+            large ? 'p-2.5 pl-3.5' : 'p-1.5 pl-2.5'
+          }`}
+        >
           <div className="flex flex-wrap gap-0.5">
-            {hasZh ? (
-              <span className="rounded bg-white/20 px-1 py-px text-[8px] font-semibold text-white backdrop-blur-sm">
-                译
-              </span>
-            ) : null}
-            {hasNotes ? (
-              <span className="rounded bg-white/20 px-1 py-px text-[8px] font-semibold text-white backdrop-blur-sm">
-                笔
+            {venueAbbr ? (
+              <span
+                title={venue || venueAbbr}
+                className={`max-w-full truncate rounded bg-white/20 font-semibold tracking-wide text-white backdrop-blur-sm ${
+                  large ? 'px-2 py-0.5 text-[12px]' : 'px-1 py-px text-[8px]'
+                }`}
+              >
+                {venueAbbr}
               </span>
             ) : null}
           </div>
           <div>
-            <p className="font-display text-[18px] leading-none text-white/25">{initial}</p>
-            <p className="mt-0.5 line-clamp-2 text-[10px] font-semibold leading-snug text-white/95">{title}</p>
+            <p
+              className={`font-display leading-none text-white/25 ${
+                large ? 'text-[32px]' : 'text-[18px]'
+              }`}
+            >
+              {initial}
+            </p>
+            <p
+              className={`mt-1 line-clamp-2 font-semibold leading-snug text-white/95 ${
+                large ? 'text-[14px]' : 'text-[10px]'
+              }`}
+            >
+              {title}
+            </p>
           </div>
         </div>
       ) : (
-        <div className="flex h-full items-end justify-center pb-1">
-          <span className="font-display text-[13px] leading-none text-white/35">{initial}</span>
+        <div className="relative flex h-full flex-col">
+          {venueAbbr ? (
+            <span
+              title={venue || venueAbbr}
+              className="absolute left-0.5 top-0.5 max-w-[calc(100%-4px)] truncate rounded bg-black/25 px-0.5 text-[7px] font-bold leading-tight tracking-wide text-white/95"
+            >
+              {venueAbbr}
+            </span>
+          ) : null}
+          <div className="mt-auto flex items-end justify-center pb-1">
+            <span className="font-display text-[13px] leading-none text-white/35">{initial}</span>
+          </div>
         </div>
       )}
     </div>
@@ -93,6 +235,8 @@ export function BookShelfRow({
   title,
   uploadId,
   hasZh,
+  hasNotes = false,
+  venue,
   subtitle,
   meta,
   status,
@@ -103,6 +247,8 @@ export function BookShelfRow({
   title: string
   uploadId: string
   hasZh?: boolean
+  hasNotes?: boolean
+  venue?: string | null
   subtitle?: string
   meta?: string
   status?: {
@@ -116,8 +262,6 @@ export function BookShelfRow({
   onClick: () => void
   onDismiss?: () => void
 }) {
-  const hasNotes = hasNotesContent(uploadId)
-
   return (
     <div
       className={`group relative flex w-full items-center gap-2.5 rounded-xl border px-2 py-1.5 shadow-sm transition ${
@@ -128,56 +272,45 @@ export function BookShelfRow({
     >
       <button type="button" onClick={onClick} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
         <div className="relative shrink-0">
-          <BookCover
-            title={title}
-            uploadId={uploadId}
-            hasZh={Boolean(hasZh)}
-            hasNotes={hasNotes}
-            size="sm"
-          />
+          <BookCover title={title} uploadId={uploadId} venue={venue} size="sm" />
           {status ? (
             <span
               className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-white ${
-                status.busy ? 'animate-pulse' : ''
-              } ${status.dotClassName ?? 'bg-[#4f46e5]'}`}
-              aria-hidden
+                status.dotClassName || 'bg-[#4f46e5]'
+              } ${status.busy ? 'animate-pulse' : ''}`}
             />
           ) : null}
         </div>
-        <div className={`min-w-0 flex-1 ${onDismiss ? 'pr-5' : ''}`}>
-          <p className="truncate text-[13px] font-semibold text-ink transition group-hover:text-[#4f46e5]">
-            {title}
-          </p>
-          <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
-            {status ? (
-              <span
-                className={`inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-px text-[10px] font-semibold tracking-wide ${status.className}`}
-              >
-                {status.busy ? (
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current opacity-80" aria-hidden />
-                ) : null}
-                {status.label}
-              </span>
-            ) : null}
-            {subtitle ? (
-              <p className="min-w-0 truncate text-[11px] text-[#9aa0b8]">{subtitle}</p>
-            ) : null}
-          </div>
-          {meta ? <p className="mt-0.5 truncate text-[10px] text-[#b0b4c8]">{meta}</p> : null}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[13px] font-semibold text-ink">{title}</p>
+          {subtitle ? <p className="mt-0.5 truncate text-[11px] text-[#9aa0b8]">{subtitle}</p> : null}
+          {meta ? <p className="mt-0.5 truncate text-[11px] text-[#9aa0b8]">{meta}</p> : null}
+          {status ? (
+            <span
+              className={`mt-1 inline-flex rounded-full px-1.5 py-px text-[10px] font-semibold ${status.className}`}
+            >
+              {status.label}
+            </span>
+          ) : null}
+          {!meta && (hasZh || hasNotes) ? (
+            <p className="mt-0.5 truncate text-[11px] text-[#9aa0b8]">
+              {hasZh ? '原文 · 译文' : '原文'}
+              {hasNotes ? ' · 笔记' : ''}
+            </p>
+          ) : null}
         </div>
       </button>
-
       {onDismiss ? (
         <button
           type="button"
+          title="从列表移除"
           onClick={(e) => {
             e.stopPropagation()
             onDismiss()
           }}
-          className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-md text-[#9aa0b8] opacity-0 transition hover:bg-[#f3f4fb] hover:text-[#6a70a0] group-hover:opacity-100 focus:opacity-100"
-          aria-label="移除记录"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[#b0b5c9] opacity-0 transition hover:bg-[#f3f4fb] hover:text-[#6a70a0] group-hover:opacity-100"
         >
-          <X size={12} strokeWidth={2.5} />
+          <X size={14} />
         </button>
       ) : null}
     </div>

@@ -29,6 +29,11 @@ MINERU_VLM_SERVER_URL = os.getenv("MINERU_VLM_SERVER_URL", "http://127.0.0.1:300
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 TASK_DIR.mkdir(parents=True, exist_ok=True)
 
+from start_api import db as library_db  # noqa: E402
+from start_api.library import configure_library, reindex_upload, run_identify, router as library_router  # noqa: E402
+
+library_db.init_db(DATA_DIR)
+
 app = FastAPI(title="StarT API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
@@ -37,6 +42,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(library_router)
 
 _lock = threading.Lock()
 _tasks: dict[str, dict[str, Any]] = {}
@@ -147,7 +153,39 @@ def _enrich_upload_meta(meta: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def _list_upload_metas() -> list[dict[str, Any]]:
+def _merge_library_fields(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    fields = library_db.library_fields_for([i["upload_id"] for i in items if i.get("upload_id")])
+    for item in items:
+        extra = fields.get(item["upload_id"], {})
+        for key, val in extra.items():
+            item[key] = val
+    return items
+
+
+def _search_corpus_for(upload_id: str) -> tuple[str, str, str]:
+    """filename, md_en, md_zh for FTS indexing."""
+    meta = _load_upload_meta(upload_id) or {}
+    filename = str(meta.get("filename") or "")
+    tid = meta.get("last_task_id")
+    md_en, md_zh = "", ""
+    if tid:
+        en_path = _task_path(str(tid)) / "document.md"
+        zh_path = _task_path(str(tid)) / "document_zh.md"
+        if en_path.is_file():
+            try:
+                md_en = en_path.read_text(encoding="utf-8", errors="ignore")
+            except Exception:
+                pass
+        if zh_path.is_file():
+            try:
+                md_zh = zh_path.read_text(encoding="utf-8", errors="ignore")
+            except Exception:
+                pass
+    return filename, md_en, md_zh
+
+
+def _list_upload_metas_raw() -> list[dict[str, Any]]:
+    """Filesystem upload metas without library merge (avoids recursion)."""
     items: list[dict[str, Any]] = []
     if not UPLOAD_DIR.exists():
         return items
@@ -158,8 +196,7 @@ def _list_upload_metas() -> list[dict[str, Any]]:
         if meta:
             items.append(_enrich_upload_meta(meta))
             continue
-        # Legacy uploads without meta.json
-        files = [p for p in folder.iterdir() if p.is_file()]
+        files = [p for p in folder.iterdir() if p.is_file() and p.name != "meta.json"]
         if not files:
             continue
         f = files[0]
@@ -177,6 +214,16 @@ def _list_upload_metas() -> list[dict[str, Any]]:
         items.append(_enrich_upload_meta(meta))
     items.sort(key=lambda m: m.get("created_at", ""), reverse=True)
     return items
+
+
+def _list_upload_metas() -> list[dict[str, Any]]:
+    return _merge_library_fields(_list_upload_metas_raw())
+
+
+configure_library(
+    resolve_search_corpus=_search_corpus_for,
+    list_upload_ids=lambda: [m["upload_id"] for m in _list_upload_metas_raw()],
+)
 
 
 def _save_task(task: dict[str, Any]) -> None:
@@ -201,6 +248,23 @@ def _save_task(task: dict[str, Any]) -> None:
                 umeta["has_zh"] = False
             umeta["updated_at"] = _now()
             _save_upload_meta(umeta)
+            if status == "done":
+                try:
+                    reindex_upload(str(upload_id))
+                except Exception:
+                    pass
+                # Auto bibliographic identify once markdown exists
+                md_path = _task_path(str(tid)) / "document.md"
+                if md_path.is_file():
+                    uid = str(upload_id)
+
+                    def _bg_identify(u: str = uid) -> None:
+                        try:
+                            run_identify(u, force=False)
+                        except Exception as exc:  # noqa: BLE001
+                            print(f"[identify] upload={u} failed: {exc}")
+
+                    threading.Thread(target=_bg_identify, daemon=True).start()
 
 
 def _load_all_tasks() -> None:
@@ -214,7 +278,43 @@ def _load_all_tasks() -> None:
             continue
 
 
+def _friendly_task_error(err: BaseException) -> str:
+    """Map common failures to short Chinese messages for the UI."""
+    msg = (str(err) or "").strip() or err.__class__.__name__
+    low = msg.lower()
+    if any(k in low for k in ("10061", "connection refused", "connecterror", "connect error", "name or service not known")):
+        return "无法连接解析服务，请确认 MinerU 已启动（默认 :8000）。"
+    if any(k in low for k in ("api key", "unauthorized", "401", "authentication", "invalid_api_key")):
+        return "AI API Key 无效或未配置，请到「通用设置 → AI API」检查。"
+    if "timeout" in low or "timed out" in low:
+        return "请求超时，请稍后重试或检查网络与服务负载。"
+    if "cuda" in low or "out of memory" in low or "oom" in low:
+        return "显存不足或 GPU 异常，可关闭公式/表格解析后重试。"
+    if len(msg) > 240:
+        return msg[:240] + "…"
+    return msg
+
+
+def _reclaim_interrupted_tasks() -> None:
+    """After BFF restart, in-flight jobs have no worker — mark failed so UI can retry."""
+    for task in list(_tasks.values()):
+        st = task.get("status")
+        if st not in {"queued", "parsing", "translating"}:
+            continue
+        task["status"] = "failed"
+        task["error"] = "服务重启，任务已中断。请在任务管理中点击「重试」。"
+        task["progress"] = {
+            "ratio": 0.0,
+            "message": "已中断",
+            "done": None,
+            "total": None,
+        }
+        task["updated_at"] = _now()
+        _save_task(task)
+
+
 _load_all_tasks()
+_reclaim_interrupted_tasks()
 
 
 class CreateTaskRequest(BaseModel):
@@ -251,8 +351,9 @@ def _run_task(task_id: str) -> None:
 
     try:
         task["status"] = "parsing"
+        task["error"] = None
         task["updated_at"] = _now()
-        _save_task(task)
+        _set_task_progress(task, ratio=0.08, message="MinerU 版面分析中…")
 
         md_path = work / "document.md"
         suffix = upload_path.suffix.lower()
@@ -308,10 +409,17 @@ def _run_task(task_id: str) -> None:
         task["status"] = "done"
         task["updated_at"] = _now()
         task["error"] = None
+        task["progress"] = {"ratio": 1.0, "message": "完成", "done": None, "total": None}
         _save_task(task)
     except Exception as err:  # noqa: BLE001
         task["status"] = "failed"
-        task["error"] = str(err)
+        task["error"] = _friendly_task_error(err)
+        task["progress"] = {
+            "ratio": float((task.get("progress") or {}).get("ratio") or 0),
+            "message": "失败",
+            "done": None,
+            "total": None,
+        }
         task["updated_at"] = _now()
         _save_task(task)
 
@@ -527,7 +635,7 @@ def _run_translate_only(task_id: str, *, beautify: bool = False) -> None:
         _save_task(task)
     except Exception as err:  # noqa: BLE001
         task["status"] = "failed"
-        task["error"] = str(err)
+        task["error"] = _friendly_task_error(err)
         task["updated_at"] = _now()
         _save_task(task)
 
@@ -557,7 +665,7 @@ def _run_link_zh_only(task_id: str) -> None:
         _save_task(task)
     except Exception as err:  # noqa: BLE001
         task["status"] = "failed"
-        task["error"] = str(err)
+        task["error"] = _friendly_task_error(err)
         task["updated_at"] = _now()
         _save_task(task)
 
@@ -577,7 +685,26 @@ def health() -> dict[str, Any]:
         import start_translate  # noqa: F401
     except Exception:
         translate = "missing"
-    return {"ok": True, "mineru": mineru, "translate": translate}
+
+    llm = "unset"
+    try:
+        from start_api.llm_config import load_llm_config
+
+        api_key, base_url, model = load_llm_config()
+        if api_key and base_url:
+            llm = "configured"
+        elif base_url and model:
+            llm = "unset"
+    except Exception:
+        llm = "unknown"
+
+    return {
+        "ok": True,
+        "mineru": mineru,
+        "translate": translate,
+        "llm": llm,
+        "data_dir": str(DATA_DIR.resolve()),
+    }
 
 
 @app.post("/api/v1/uploads", response_model=UploadResponse)
@@ -655,6 +782,10 @@ def delete_upload(upload_id: str) -> dict[str, Any]:
             removed_tasks.append(tid)
 
     shutil.rmtree(folder)
+    try:
+        library_db.delete_paper_data(upload_id)
+    except Exception:
+        pass
     return {"ok": True, "upload_id": upload_id, "removed_tasks": removed_tasks}
 
 
@@ -880,6 +1011,33 @@ async def upload_task_image(
         "img_path": f"images/{safe}",
         "url": f"/api/v1/tasks/{task_id}/images/{safe}",
     }
+
+
+@app.post("/api/v1/tasks/{task_id}/retry", response_model=TaskCreateResponse)
+def retry_task(task_id: str, background: BackgroundTasks) -> TaskCreateResponse:
+    """Re-queue a failed/done task with the same parse/translate options."""
+    task = _load_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="task not found")
+    if task.get("status") in {"queued", "parsing", "translating"}:
+        raise HTTPException(status_code=409, detail=f"task is busy ({task.get('status')})")
+
+    upload_path = Path(task.get("upload_path") or "")
+    if not upload_path.is_file():
+        raise HTTPException(status_code=400, detail="原始上传文件已丢失，无法重试")
+
+    task["status"] = "queued"
+    task["error"] = None
+    task["progress"] = {
+        "ratio": 0.0,
+        "message": "排队重试…",
+        "done": None,
+        "total": None,
+    }
+    task["updated_at"] = _now()
+    _save_task(task)
+    background.add_task(_run_task, task_id)
+    return TaskCreateResponse(task_id=task_id, status="queued")
 
 
 @app.post("/api/v1/tasks/{task_id}/translate", response_model=TaskCreateResponse)

@@ -1,4 +1,4 @@
-/** Reading-room notes persistence + export helpers (per uploadId). */
+/** Reading-room notes: server (SQLite via BFF) + localStorage cache/migration. */
 
 import type { JSONContent } from '@tiptap/core'
 import {
@@ -6,6 +6,7 @@ import {
   notesExportFilename,
   tipTapJsonToMarkdown,
 } from '@/features/reading/notesExportMarkdown'
+import { getNotes, putNotes } from '@/services/api'
 
 export type NoteDoc = {
   html: string
@@ -105,7 +106,6 @@ function htmlToRoughMarkdown(html: string): string {
       Array.from(el.childNodes).forEach(walkBlock)
       return
     }
-    // fallback: treat as paragraph-ish
     const text = walkInline(el).trim()
     if (text) push(text)
   }
@@ -114,7 +114,15 @@ function htmlToRoughMarkdown(html: string): string {
   return blocks.join('\n\n').trim()
 }
 
-export function loadNoteDoc(uploadId: string): NoteDoc | null {
+function cacheLocal(uploadId: string, doc: NoteDoc) {
+  try {
+    localStorage.setItem(notesKey(uploadId), JSON.stringify(doc))
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+export function loadNoteDocLocal(uploadId: string): NoteDoc | null {
   try {
     const raw = localStorage.getItem(notesKey(uploadId))
     if (!raw) return null
@@ -136,25 +144,92 @@ export function loadNoteDoc(uploadId: string): NoteDoc | null {
   return null
 }
 
-export function loadNoteHtml(uploadId: string): string {
-  return loadNoteDoc(uploadId)?.html || ''
+/** @deprecated sync local-only — prefer fetchNoteDoc */
+export function loadNoteDoc(uploadId: string): NoteDoc | null {
+  return loadNoteDocLocal(uploadId)
 }
 
-export function saveNoteDoc(uploadId: string, html: string, json?: JSONContent) {
+export function loadNoteHtml(uploadId: string): string {
+  return loadNoteDocLocal(uploadId)?.html || ''
+}
+
+/** Load from server; migrate localStorage once if server empty. */
+export async function fetchNoteDoc(uploadId: string): Promise<NoteDoc | null> {
+  try {
+    const remote = await getNotes(uploadId)
+    const remoteHtml = (remote.html || '').trim()
+    if (remoteHtml || remote.json) {
+      const doc: NoteDoc = {
+        html: remote.html || '',
+        updatedAt: remote.updated_at || Date.now(),
+        ...(remote.json ? { json: remote.json as JSONContent } : {}),
+      }
+      cacheLocal(uploadId, doc)
+      return doc
+    }
+  } catch {
+    /* fall through to local */
+  }
+
+  const local = loadNoteDocLocal(uploadId)
+  if (local && ((local.html || '').trim() || local.json)) {
+    try {
+      await putNotes(uploadId, {
+        html: local.html || '',
+        json: local.json,
+        updated_at: local.updatedAt,
+      })
+    } catch {
+      /* keep local */
+    }
+    return local
+  }
+  return null
+}
+
+export type SaveNoteResult = {
+  ok: boolean
+  /** Saved only to localStorage (server PUT failed). */
+  localOnly: boolean
+  updatedAt: number
+  error?: string
+}
+
+export async function saveNoteDoc(
+  uploadId: string,
+  html: string,
+  json?: JSONContent,
+): Promise<SaveNoteResult> {
   const doc: NoteDoc = {
     html,
     updatedAt: Date.now(),
     ...(json ? { json } : {}),
   }
+  cacheLocal(uploadId, doc)
   try {
-    localStorage.setItem(notesKey(uploadId), JSON.stringify(doc))
-  } catch {
-    /* quota / private mode */
+    await putNotes(uploadId, {
+      html,
+      json,
+      updated_at: doc.updatedAt,
+    })
+    return { ok: true, localOnly: false, updatedAt: doc.updatedAt }
+  } catch (err) {
+    return {
+      ok: false,
+      localOnly: true,
+      updatedAt: doc.updatedAt,
+      error: err instanceof Error ? err.message : '同步失败',
+    }
   }
 }
 
-export function hasNotesContent(uploadId: string): boolean {
-  const doc = loadNoteDoc(uploadId)
+/** Prefer server flag on UploadItem; local cache as fallback. */
+export function hasNotesContent(
+  uploadId: string,
+  serverFlag?: boolean | null,
+): boolean {
+  if (typeof serverFlag === 'boolean') return serverFlag
+  const doc = loadNoteDocLocal(uploadId)
   if (!doc) return false
   const html = (doc.html || '').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim()
   if (html) return true
@@ -162,9 +237,8 @@ export function hasNotesContent(uploadId: string): boolean {
   return false
 }
 
-/** Build Markdown for a paper's notes. Returns empty string if none. */
 export function notesToMarkdown(uploadId: string): string {
-  const doc = loadNoteDoc(uploadId)
+  const doc = loadNoteDocLocal(uploadId)
   if (!doc) return ''
   if (doc.json && Array.isArray(doc.json.content)) {
     return tipTapJsonToMarkdown(doc.json)
@@ -176,7 +250,6 @@ export function notesToMarkdown(uploadId: string): string {
   return ''
 }
 
-/** Download notes as Markdown. Returns false if empty. */
 export function exportNotesMarkdown(uploadId: string, filename: string): boolean {
   const md = notesToMarkdown(uploadId)
   if (!md.trim()) return false

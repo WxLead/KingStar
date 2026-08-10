@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { motion } from 'framer-motion'
 import {
@@ -17,6 +17,7 @@ import {
   Download,
   ChevronDown,
   Plus,
+  RotateCcw,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -25,7 +26,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import ListPageHero, { MetaChip } from '@/features/layout/ListPageHero'
+import ListPageHero from '@/features/layout/ListPageHero'
+import TaskFilterBar, { type TaskFilter } from '@/features/tasks/TaskFilterBar'
 import { downloadTextFile } from '@/features/reading/notesExportMarkdown'
 import { useUploads } from '@/features/uploads/UploadsContext'
 import {
@@ -38,6 +40,8 @@ import {
   fetchArtifactText,
   formatBytes,
   formatUploadTime,
+  getTask,
+  retryTask,
   type UploadItem,
 } from '@/services/api'
 
@@ -136,7 +140,7 @@ function ActionBtn({
 
 function TaskRow({ item }: { item: UploadItem }) {
   const navigate = useNavigate()
-  const { selectedId, setSelectedId, busyId, remove, translateOneClick } = useUploads()
+  const { selectedId, setSelectedId, busyId, remove, translateOneClick, refresh } = useUploads()
   const stage = resolveStage(item)
   const status = stageMeta(stage)
   const fileMeta = fileIconMeta(item.filename)
@@ -148,6 +152,26 @@ function TaskRow({ item }: { item: UploadItem }) {
     !pipelineBusy &&
     (stage === 'parsed' || stage === 'completed' || stage === 'failed' || stage === 'unprocessed')
   const [exporting, setExporting] = useState(false)
+  const [retrying, setRetrying] = useState(false)
+  const [taskError, setTaskError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (stage !== 'failed' || !item.last_task_id) {
+      setTaskError(null)
+      return
+    }
+    let cancelled = false
+    void getTask(item.last_task_id)
+      .then((t) => {
+        if (!cancelled) setTaskError(t.error || null)
+      })
+      .catch(() => {
+        if (!cancelled) setTaskError(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [stage, item.last_task_id])
 
   const openWorkspace = () => {
     setSelectedId(item.upload_id)
@@ -187,6 +211,19 @@ function TaskRow({ item }: { item: UploadItem }) {
       await remove(item.upload_id)
     } catch (err) {
       alert(err instanceof Error ? err.message : '删除失败')
+    }
+  }
+
+  const onRetry = async () => {
+    if (!item.last_task_id) return
+    setRetrying(true)
+    try {
+      await retryTask(item.last_task_id)
+      await refresh()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '重试失败')
+    } finally {
+      setRetrying(false)
     }
   }
 
@@ -245,6 +282,11 @@ function TaskRow({ item }: { item: UploadItem }) {
           {formatBytes(item.size)}
           {item.created_at ? ` · ${formatUploadTime(item.created_at)}` : ''}
         </p>
+        {stage === 'failed' && taskError ? (
+          <p className="mt-1 truncate text-[11px] text-[#b45309]" title={taskError}>
+            {taskError}
+          </p>
+        ) : null}
       </div>
 
       <span
@@ -258,6 +300,19 @@ function TaskRow({ item }: { item: UploadItem }) {
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
       >
+        {stage === 'failed' && item.last_task_id ? (
+          <ActionBtn
+            label={retrying ? '重试中' : '重试'}
+            disabled={retrying || busy}
+            onClick={() => void onRetry()}
+          >
+            {retrying ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <RotateCcw size={13} />
+            )}
+          </ActionBtn>
+        ) : null}
         <ActionBtn
           label={stage === 'translating' ? '翻译中' : '翻译'}
           title={
@@ -345,8 +400,6 @@ function TaskRow({ item }: { item: UploadItem }) {
   )
 }
 
-type TaskFilter = 'all' | 'busy' | 'ready'
-
 function isReadyStage(item: UploadItem): boolean {
   const s = resolveStage(item)
   return s === 'completed' || s === 'parsed'
@@ -366,34 +419,6 @@ export default function TasksPage() {
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-[#e8e9f4] bg-[#f8f8fd]">
       <ListPageHero
         title="任务管理"
-        subtitle="跟进每篇文献的解析与翻译进度，点行进入工作区继续处理。"
-        meta={
-          !loading && items.length > 0 ? (
-            <>
-              <MetaChip
-                label="全部"
-                value={items.length}
-                tone="neutral"
-                active={filter === 'all'}
-                onClick={() => setFilter('all')}
-              />
-              <MetaChip
-                label="进行中"
-                value={busyItems.length}
-                tone={busyItems.length ? 'accent' : 'muted'}
-                active={filter === 'busy'}
-                onClick={() => setFilter('busy')}
-              />
-              <MetaChip
-                label="已就绪"
-                value={readyItems.length}
-                tone="accent"
-                active={filter === 'ready'}
-                onClick={() => setFilter('ready')}
-              />
-            </>
-          ) : undefined
-        }
         action={
           <button
             type="button"
@@ -409,6 +434,18 @@ export default function TasksPage() {
           </button>
         }
       />
+
+      {!loading && items.length > 0 ? (
+        <TaskFilterBar
+          filter={filter}
+          onChange={setFilter}
+          counts={{
+            all: items.length,
+            busy: busyItems.length,
+            ready: readyItems.length,
+          }}
+        />
+      ) : null}
 
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
         {loading && <p className="px-2 text-[15px] text-[#9aa0b8]">加载中…</p>}

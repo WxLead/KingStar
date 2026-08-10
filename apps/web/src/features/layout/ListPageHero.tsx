@@ -1,4 +1,9 @@
-/** Shared atmospheric header for list pages (书架 / 任务管理). */
+import {
+  pageToolbarInner,
+  toolbarSurface,
+} from '@/features/layout/toolbarChrome'
+
+/** Compact toolbar header for list pages (文献 / 任务管理 / 设置). */
 export default function ListPageHero({
   title,
   subtitle,
@@ -6,33 +11,23 @@ export default function ListPageHero({
   action,
 }: {
   title: string
-  subtitle: string
+  subtitle?: string
   meta?: React.ReactNode
   action?: React.ReactNode
 }) {
   return (
-    <header className="relative shrink-0 overflow-hidden border-b border-[#e8e9f4]">
-      <div
-        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#e9ebfb] via-[#f3f4fb] to-transparent"
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full opacity-40 blur-3xl"
-        style={{ background: 'radial-gradient(circle, #c5c8f0 0%, transparent 70%)' }}
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none absolute bottom-0 left-10 right-10 h-px bg-gradient-to-r from-transparent via-[#d5d8ec] to-transparent"
-        aria-hidden
-      />
-
-      <div className="relative flex flex-wrap items-end justify-between gap-4 px-8 pb-6 pt-8">
-        <div className="min-w-0 max-w-xl">
-          <h1 className="font-display text-[34px] leading-none tracking-wide text-[#4f46e5]">{title}</h1>
-          <p className="mt-2.5 text-[15px] leading-relaxed text-ink-soft">{subtitle}</p>
-          {meta && <div className="mt-3.5 flex flex-wrap items-center gap-2">{meta}</div>}
+    <header className={toolbarSurface}>
+      <div className={pageToolbarInner}>
+        <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+          <h1 className="font-display truncate text-[18px] font-semibold leading-none tracking-wide text-[#4f46e5]">
+            {title}
+          </h1>
+          {subtitle ? (
+            <p className="truncate text-[13px] text-ink-soft">{subtitle}</p>
+          ) : null}
+          {meta ? <div className="flex flex-wrap items-center gap-2">{meta}</div> : null}
         </div>
-        {action && <div className="shrink-0">{action}</div>}
+        {action ? <div className="shrink-0">{action}</div> : null}
       </div>
     </header>
   )

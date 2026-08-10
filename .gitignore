@@ -5,6 +5,7 @@ logs
 Thumbs.db
 scripts/.logs/
 scripts/.dev-pids.json
+backups/
 
 # Node
 node_modules
