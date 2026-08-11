@@ -269,6 +269,8 @@ def build_font_face_css() -> str:
     """Load project fonts: Times for English, SimSun (宋体) for Chinese.
 
     Absolute file:// URIs so HTML works even when written outside the repo.
+    Prefer local("SimSun") so Chromium embeds real system/project Songti glyphs
+    into the PDF (large data: URI fonts often fail to embed at print time).
     """
     missing = [p.name for p in (TIMES_FONT, SIMSUN_FONT) if not p.exists()]
     if missing:
@@ -308,25 +310,27 @@ def build_font_face_css() -> str:
     font-display: block;
   }}
   /* Hard fallback for PDF print: AI CSS may drop CJK fonts and cause tofu boxes.
+     Match both bare Markdown HTML and beautified .paper-root trees.
      Do not target mjx-* so MathJax keeps its own math fonts. */
-  body, .paper-root,
-  .paper-root p, .paper-root li, .paper-root td, .paper-root th,
+  body, p, li, td, th, h1, h2, h3, h4, h5, h6, figcaption,
+  .paper-root, .paper-root p, .paper-root li, .paper-root td, .paper-root th,
   .paper-root h1, .paper-root h2, .paper-root h3, .paper-root h4,
   .paper-root h5, .paper-root h6, .paper-root figcaption,
-  .paper-root .paper-abstract, .paper-root .paper-caption,
-  .paper-root .paper-authors, .paper-root .paper-affil,
-  .paper-root .paper-header, .paper-root .paper-section {{
+  .paper-abstract, .paper-caption, .paper-authors, .paper-affil,
+  .paper-header, .paper-section, .paper-title {{
     font-family: "PaperTimes", "PaperSong", "Times New Roman", "SimSun", "宋体", serif !important;
   }}
-  .paper-root code, .paper-root pre {{
+  code, pre, .paper-root code, .paper-root pre {{
     font-family: Consolas, "Courier New", monospace !important;
   }}
   /* Body text must stay regular; AI CSS sometimes bolds whole .paper-section. */
+  body, p, li, td, th,
   .paper-root, .paper-section, .paper-abstract, .paper-refs,
   .paper-root p, .paper-section p, .paper-abstract p,
   .paper-root li, .paper-root td, .paper-root th {{
     font-weight: 400 !important;
   }}
+  h1, h2, h3, h4, h5, h6,
   .paper-root h1, .paper-root h2, .paper-root h3,
   .paper-root h4, .paper-root h5, .paper-root h6,
   .paper-title, .paper-section > h1, .paper-section > h2,

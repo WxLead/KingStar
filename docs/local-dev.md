@@ -7,7 +7,7 @@
 - Optional: GPU + MinerU models for real parse
 - DeepSeek API key for translation (`.env` under `services/translate` or `services/api`)
 
-日常优先用仓库根目录一键启动：`.\scripts\dev-up.ps1`（说明见 [README.md](../README.md#一键启动推荐)）。分终端命令与下文补充说明仍可用。
+日常优先用仓库根目录一键启动：`.\scripts\dev-up.ps1`（说明见 [README.md](../README.md#b-本地开发一键脚本)）。分终端命令与下文补充说明仍可用。
 
 ## 1. Web
 
@@ -41,10 +41,10 @@ Health: `http://127.0.0.1:8080/api/v1/health`
 
 ## 3. MinerU API (engine)
 
-From installed `mineru` or `D:\desktop\MinerU`:
+From installed `mineru` or `/path/to/MinerU`:
 
 ```powershell
-cd D:\desktop\MinerU
+cd /path/to/MinerU
 .\.venv\Scripts\Activate.ps1   # 若使用项目 venv
 mineru-api --host 127.0.0.1 --port 8000
 ```
@@ -68,11 +68,11 @@ copy .env.example .env   # fill DEEPSEEK_API_KEY
 python -m start_translate.cli direct examples/MinerU.md
 ```
 
-## Docker (all-in-one sketch)
+## Docker（产品：web + api）
+
+MinerU 外接，不打进镜像。步骤见 [docker/README.md](../docker/README.md)。
 
 ```powershell
-cd docker
-docker compose up --build
+copy docker\.env.example docker\.env
+docker compose -f docker/docker-compose.yml --env-file docker/.env up --build -d
 ```
-
-See [retire-standalone.md](retire-standalone.md) for retiring `D:\desktop\Translation` / standalone StarT layout.

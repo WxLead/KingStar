@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { motion } from 'framer-motion'
 import {
@@ -105,15 +105,18 @@ function ShelfCard({
       draggable={Boolean(reorderable)}
       onDragStart={(e) => {
         if (!reorderable) return
-        e.dataTransfer.effectAllowed = 'move'
-        e.dataTransfer.setData('text/plain', item.upload_id)
+        // framer-motion types this as Pointer/Mouse/Touch; HTML5 DnD still provides dataTransfer
+        const de = e as unknown as DragEvent<HTMLDivElement>
+        de.dataTransfer.effectAllowed = 'move'
+        de.dataTransfer.setData('text/plain', item.upload_id)
         suppressClick.current = false
         onDragStart?.(item.upload_id)
       }}
       onDragOver={(e) => {
         if (!reorderable) return
         e.preventDefault()
-        e.dataTransfer.dropEffect = 'move'
+        const de = e as unknown as DragEvent<HTMLDivElement>
+        de.dataTransfer.dropEffect = 'move'
         onDragOver?.(item.upload_id)
       }}
       onDrop={(e) => {

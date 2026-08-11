@@ -12,7 +12,7 @@ pip install -e .
 ## Start MinerU engine
 
 ```powershell
-# from installed mineru, or D:\desktop\MinerU env
+# from installed mineru, or /path/to/MinerU env
 mineru-api --host 0.0.0.0 --port 8000
 ```
 

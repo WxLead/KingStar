@@ -3,8 +3,19 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
+# Override if needed: docker compose build --build-arg APT_MIRROR=deb.debian.org api
+ARG APT_MIRROR=mirrors.aliyun.com
+RUN set -eux; \
+    if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+      sed -i "s/deb.debian.org/${APT_MIRROR}/g; s/security.debian.org/${APT_MIRROR}/g" \
+        /etc/apt/sources.list.d/debian.sources; \
+    elif [ -f /etc/apt/sources.list ]; then \
+      sed -i "s/deb.debian.org/${APT_MIRROR}/g; s/security.debian.org/${APT_MIRROR}/g" \
+        /etc/apt/sources.list; \
+    fi; \
+    apt-get update && apt-get install -y --no-install-recommends \
+      build-essential \
+      fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
 
 COPY services/parse /app/services/parse
@@ -15,7 +26,7 @@ RUN pip install --no-cache-dir -e /app/services/parse -e /app/services/translate
     && playwright install --with-deps chromium || true
 
 ENV START_DATA_DIR=/data \
-    MINERU_API_URL=http://mineru-api:8000 \
+    MINERU_API_URL=http://host.docker.internal:8000 \
     START_API_HOST=0.0.0.0 \
     START_API_PORT=8080
 

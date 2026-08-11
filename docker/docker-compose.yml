@@ -1,9 +1,14 @@
-# StarT compose stack
-# Usage (from repo root):
-#   docker compose -f docker/docker-compose.yml up --build
+# StarT product stack (web + api). MinerU is external by default.
 #
-# MinerU: use official/public image when available, or build from D:\desktop\MinerU.
-# Dev without Docker MinerU: run mineru-api on host and set MINERU_API_URL.
+# Host ports (override in docker/.env if defaults are busy):
+#   START_WEB_PORT=3000   START_API_PORT=8080   MINERU_PORT=8000
+#
+# From repository root:
+#   copy docker\.env.example docker\.env   # fill keys / ports / MinerU URL
+#   docker compose -f docker/docker-compose.yml --env-file docker/.env up --build -d
+#
+# Optional later (GPU MinerU in compose):
+#   docker compose -f docker/docker-compose.yml --env-file docker/.env --profile mineru up --build -d
 
 services:
   web:
@@ -11,37 +16,45 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.web
     ports:
-      - "3000:80"
+      # host:container — change START_WEB_PORT when 3000 is taken
+      - "${START_WEB_PORT:-3000}:80"
     depends_on:
       - api
+    restart: unless-stopped
 
   api:
     build:
       context: ..
       dockerfile: docker/Dockerfile.api
     ports:
-      - "8080:8080"
+      # host:container — change START_API_PORT when 8080 is taken
+      - "${START_API_PORT:-8080}:8080"
+    env_file:
+      - path: .env
+        required: false
     environment:
-      MINERU_API_URL: ${MINERU_API_URL:-http://mineru-api:8000}
+      # Prefer values from docker/.env; defaults assume MinerU on the host machine.
+      MINERU_API_URL: ${MINERU_API_URL:-http://host.docker.internal:8000}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-flash}
       START_DATA_DIR: /data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - start_data:/data
-    depends_on:
-      - mineru-api
+    restart: unless-stopped
 
-  # Placeholder: point image to your MinerU build or override command.
-  # Local alternative: comment this service out and run `mineru-api` on the host,
-  # then set MINERU_API_URL=http://host.docker.internal:8000 for api.
+  # Optional: enable with --profile mineru (requires a working MINERU_IMAGE + GPU).
+  # Set MINERU_API_URL=http://mineru-api:8000 (container port). MINERU_PORT only maps the host side.
   mineru-api:
     image: ${MINERU_IMAGE:-opendatalab/mineru:latest}
     profiles: ["mineru"]
     ports:
-      - "8000:8000"
+      - "${MINERU_PORT:-8000}:8000"
     command: ["mineru-api", "--host", "0.0.0.0", "--port", "8000"]
-    # shm_size / gpus as needed for your deployment
+    restart: unless-stopped
+    # shm_size / gpus: configure when enabling the full stack
 
 volumes:
   start_data:

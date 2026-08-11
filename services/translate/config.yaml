@@ -15,7 +15,7 @@ pdf:
     right: 16mm
     bottom: 18mm
     left: 16mm
-  body_max_width: 180mm
+  body_max_width: 100%
   image_max_height: 90mm
 
 paths:

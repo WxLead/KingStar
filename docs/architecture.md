@@ -35,7 +35,7 @@ User → apps/web → services/api (BFF)
 ## Principles
 
 1. **Stable product contract** — the web app only calls `services/api`. Engines stay swappable.
-2. **MinerU is an engine, not product source** — do not rewrite `mineru/` internals. Run `mineru-api` (pip / Docker / local `D:\desktop\MinerU`) and adapt via `services/parse`.
+2. **MinerU is an engine, not product source** — do not rewrite `mineru/` internals. Run `mineru-api` (pip / Docker / local `/path/to/MinerU`) and adapt via `services/parse`.
 3. **Translate is a library + CLI** — importable by the BFF; `python -m start_translate.cli` for local debug.
 4. **Contract first, move later** — directory and API shapes before deleting desktop copies of Translation / MinerU.
 
@@ -47,7 +47,7 @@ Polling is enough for v1 (no heavy queue).
 
 ## Local MinerU
 
-Dev: start `mineru-api` from `D:\desktop\MinerU` (or installed package).
+Dev: start `mineru-api` from `/path/to/MinerU` (or installed package).
 
 ```bash
 mineru-api --host 0.0.0.0 --port 8000

@@ -16,7 +16,7 @@
   Do not start MinerU (use if already running).
 
 .PARAMETER MinerUHome
-  MinerU repo / install root. Default: $env:MINERU_HOME or D:\desktop\MinerU
+  MinerU repo / install root. Default: $env:MINERU_HOME (required to auto-start MinerU unless -SkipMinerU).
 
 .EXAMPLE
   .\scripts\dev-up.ps1
@@ -44,7 +44,7 @@ $LogDir = Join-Path $PSScriptRoot ".logs"
 $PidFile = Join-Path $PSScriptRoot ".dev-pids.json"
 
 if (-not $MinerUHome) {
-  $MinerUHome = if ($env:MINERU_HOME) { $env:MINERU_HOME } else { "D:\desktop\MinerU" }
+  $MinerUHome = if ($env:MINERU_HOME) { $env:MINERU_HOME } else { "" }
 }
 
 function Test-PortListening([int]$Port) {
@@ -169,9 +169,13 @@ if ($SkipMinerU) {
 } elseif ((Test-PortListening 8000) -and (Test-HttpOk "http://127.0.0.1:8000/docs")) {
   Write-Host "[ok]   MinerU already on :8000" -ForegroundColor DarkYellow
 } else {
-  if (-not (Test-Path $MinerUHome)) {
-    Write-Host "[warn] MinerU home not found: $MinerUHome" -ForegroundColor Yellow
-    Write-Host "       Set MINERU_HOME or pass -MinerUHome. Continuing without MinerU." -ForegroundColor Yellow
+  if (-not $MinerUHome -or -not (Test-Path $MinerUHome)) {
+    if (-not $MinerUHome) {
+      Write-Host "[warn] MinerU home not set. Set MINERU_HOME or pass -MinerUHome /path/to/MinerU." -ForegroundColor Yellow
+    } else {
+      Write-Host "[warn] MinerU home not found: $MinerUHome" -ForegroundColor Yellow
+    }
+    Write-Host "       Continuing without starting MinerU (use -SkipMinerU to silence, or start mineru-api yourself)." -ForegroundColor Yellow
   } else {
     if (Test-PortListening 8000) {
       Write-Host "[warn] :8000 looks occupied but MinerU health failed; starting anyway" -ForegroundColor Yellow
