@@ -15,12 +15,21 @@ RUN set -eux; \
     fi; \
     apt-get update && apt-get install -y --no-install-recommends \
       build-essential \
-      fonts-noto-cjk \
+      fontconfig \
     && rm -rf /var/lib/apt/lists/*
 
 COPY services/parse /app/services/parse
 COPY services/translate /app/services/translate
 COPY services/api /app/services/api
+
+# Install project SimSun + Times as system fonts so @font-face local("SimSun") /
+# local("Times New Roman") work inside Chromium PDF (same path as Windows Translation).
+# Do NOT use fonts-noto-cjk here — it substitutes the wrong face and still tofu in Edge.
+RUN set -eux; \
+    mkdir -p /usr/local/share/fonts/start; \
+    cp /app/services/translate/assets/fonts/SIMSUN.TTF /usr/local/share/fonts/start/SimSun.ttf; \
+    cp /app/services/translate/assets/fonts/TIMES.TTF /usr/local/share/fonts/start/TimesNewRoman.ttf; \
+    fc-cache -f
 
 RUN pip install --no-cache-dir -e /app/services/parse -e /app/services/translate -e /app/services/api \
     && playwright install --with-deps chromium || true

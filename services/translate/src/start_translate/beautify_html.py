@@ -25,10 +25,11 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from start_translate.export_pdf import (
+    assemble_html,
     build_font_face_css,
     default_title,
     md_to_body_html,
-    assemble_html,
+    stage_fonts_beside,
 )
 from start_translate.translate_md import build_client_config
 
@@ -579,12 +580,19 @@ def main(argv: list[str] | None = None) -> int:
         limit_chunks=args.limit_chunks,
         progress=print,
     )
-    html = assemble_html(title=title, body=body2, extra_css=ai_css)
     if args.output:
         out = args.output
     else:
         out = outputs_dir() / f"{args.input.stem}_paper.html"
     out.parent.mkdir(parents=True, exist_ok=True)
+    times_font, simsun_font = stage_fonts_beside(out)
+    html = assemble_html(
+        title=title,
+        body=body2,
+        extra_css=ai_css,
+        times_font=times_font,
+        simsun_font=simsun_font,
+    )
     out.write_text(html, encoding="utf-8")
     print(f"Wrote: {out}")
     return 0

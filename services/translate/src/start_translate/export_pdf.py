@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import html as html_lib
 import re
+import shutil
 import sys
 from pathlib import Path
 
@@ -22,6 +23,9 @@ TIMES_FONT = FONTS_DIR / "TIMES.TTF"
 SIMSUN_FONT_TTF = FONTS_DIR / "SIMSUN.TTF"
 SIMSUN_FONT_TTC = FONTS_DIR / "SIMSUN.TTC"
 SIMSUN_FONT = SIMSUN_FONT_TTF if SIMSUN_FONT_TTF.exists() else SIMSUN_FONT_TTC
+# Staged beside HTML so @font-face url() fallbacks resolve even when the HTML
+# lives outside the package (e.g. under START_DATA_DIR / outputs/).
+STAGED_FONTS_DIRNAME = ".start_fonts"
 
 HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="zh-CN">
@@ -265,17 +269,48 @@ def restore_math(html: str, mapping: dict[str, tuple[str, str]]) -> str:
     return html
 
 
-def build_font_face_css() -> str:
+def stage_fonts_beside(html_path: Path) -> tuple[Path, Path]:
+    """Copy project fonts next to the HTML file.
+
+    Chromium blocks cross-directory file:// font URLs (e.g. HTML under /data
+    loading fonts from /app). Same-folder (or subfolder) file:// works, matching
+    the Translation export approach without data: URI embedding.
+    """
+    dest_dir = html_path.parent / STAGED_FONTS_DIRNAME
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    times_dst = dest_dir / TIMES_FONT.name
+    simsun_dst = dest_dir / SIMSUN_FONT.name
+    for src, dst in ((TIMES_FONT, times_dst), (SIMSUN_FONT, simsun_dst)):
+        if not src.exists():
+            continue
+        if not dst.exists() or dst.stat().st_size != src.stat().st_size:
+            shutil.copy2(src, dst)
+    return times_dst, simsun_dst
+
+
+def build_font_face_css(
+    times_font: Path | None = None,
+    simsun_font: Path | None = None,
+    *,
+    times_url: str | None = None,
+    simsun_url: str | None = None,
+) -> str:
     """Load project fonts: Times for English, SimSun (宋体) for Chinese.
 
-    Absolute file:// URIs so HTML works even when written outside the repo.
-    Prefer local("SimSun") so Chromium embeds real system/project Songti glyphs
-    into the PDF (large data: URI fonts often fail to embed at print time).
+    Match Translation's Windows-local behavior: PaperSong prefers
+    local("SimSun") / local("宋体") first so Chromium embeds the real system
+    Songti. Forcing the project SIMSUN.TTF url first often embeds in a way
+    Chrome/mobile can substitute around, but Edge shows black tofu boxes.
+
+    Project TTF urls remain as fallback when system SimSun is absent.
+    Never use large data: URIs — they often fail to embed and tofu in Edge.
     """
-    missing = [p.name for p in (TIMES_FONT, SIMSUN_FONT) if not p.exists()]
-    if missing:
+    times = times_font or TIMES_FONT
+    simsun = simsun_font or SIMSUN_FONT
+    missing = [p.name for p in (times, simsun) if not p.exists()]
+    if missing and not (times_url and simsun_url):
         print(
-            f"Warning: missing font file(s) in {FONTS_DIR}: {', '.join(missing)}; "
+            f"Warning: missing font file(s): {', '.join(missing)}; "
             "falling back to system Times New Roman / SimSun.",
             file=sys.stderr,
         )
@@ -283,9 +318,9 @@ def build_font_face_css() -> str:
   /* System font fallback when assets/fonts is incomplete */
 """
 
-    times_uri = TIMES_FONT.resolve().as_uri()
-    simsun_uri = SIMSUN_FONT.resolve().as_uri()
-    simsun_fmt = "truetype" if SIMSUN_FONT.suffix.lower() == ".ttf" else "collection"
+    times_uri = times_url or times.resolve().as_uri()
+    simsun_uri = simsun_url or simsun.resolve().as_uri()
+    simsun_fmt = "truetype" if (simsun_url or simsun.suffix.lower() == ".ttf") else "collection"
     return f"""
   @font-face {{
     font-family: "PaperTimes";
@@ -435,6 +470,9 @@ def assemble_html(
     title: str,
     body: str,
     extra_css: str = "",
+    *,
+    times_font: Path | None = None,
+    simsun_font: Path | None = None,
 ) -> str:
     """Assemble full HTML document with fonts, MathJax, and optional AI CSS.
 
@@ -447,7 +485,10 @@ def assemble_html(
     combined_extra = "\n".join(parts)
     return (
         HTML_TEMPLATE.replace("__TITLE__", _html_escape(title))
-        .replace("__FONT_FACE__", build_font_face_css())
+        .replace(
+            "__FONT_FACE__",
+            build_font_face_css(times_font=times_font, simsun_font=simsun_font),
+        )
         .replace("__PAGE_MARGIN__", str(lay["page_margin"]))
         .replace("__BODY_MAX_WIDTH__", str(lay["body_max_width"]))
         .replace("__IMAGE_MAX_HEIGHT__", str(lay["image_max_height"]))
@@ -456,8 +497,21 @@ def assemble_html(
     )
 
 
-def md_to_html(md_text: str, title: str, extra_css: str = "") -> str:
-    return assemble_html(title=title, body=md_to_body_html(md_text), extra_css=extra_css)
+def md_to_html(
+    md_text: str,
+    title: str,
+    extra_css: str = "",
+    *,
+    times_font: Path | None = None,
+    simsun_font: Path | None = None,
+) -> str:
+    return assemble_html(
+        title=title,
+        body=md_to_body_html(md_text),
+        extra_css=extra_css,
+        times_font=times_font,
+        simsun_font=simsun_font,
+    )
 
 
 def _html_escape(text: str) -> str:
@@ -478,7 +532,12 @@ def default_title(md_path: Path, md_text: str) -> str:
 
 
 def export_pdf_with_playwright(html_path: Path, pdf_path: Path, base_url: str) -> None:
-    """Print the local HTML exactly as the browser shows it (screen media)."""
+    """Print the local HTML exactly as the browser shows it (screen media).
+
+    Same approach as Translation: open the file:// HTML, prefer system SimSun via
+    local() for Chinese embedding (Edge-safe on Windows), and wait for fonts
+    before page.pdf(). Staged project TTFs remain as @font-face fallbacks.
+    """
     try:
         from playwright.sync_api import sync_playwright
     except ImportError as err:
@@ -489,6 +548,11 @@ def export_pdf_with_playwright(html_path: Path, pdf_path: Path, base_url: str) -
         ) from err
 
     pdf_path.parent.mkdir(parents=True, exist_ok=True)
+    times_font, simsun_font = stage_fonts_beside(html_path)
+    print_font_css = build_font_face_css(
+        times_font=times_font if times_font.exists() else None,
+        simsun_font=simsun_font if simsun_font.exists() else None,
+    )
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -501,6 +565,8 @@ def export_pdf_with_playwright(html_path: Path, pdf_path: Path, base_url: str) -
         # Critical: use screen styles (what you see in the browser), not print CSS.
         page.emulate_media(media="screen")
         page.goto(base_url, wait_until="networkidle", timeout=180_000)
+        if print_font_css.strip():
+            page.add_style_tag(content=print_font_css)
         try:
             page.wait_for_function(
                 "() => document.documentElement.getAttribute('data-mathjax-ready') === 'true'",
@@ -508,7 +574,6 @@ def export_pdf_with_playwright(html_path: Path, pdf_path: Path, base_url: str) -
             )
         except Exception:
             page.wait_for_timeout(5000)
-        # Wait for webfonts + MathJax SVG nodes to settle (same as a normal browser tab).
         try:
             page.wait_for_function(
                 """() => document.fonts && document.fonts.status === 'loaded'
@@ -517,7 +582,29 @@ def export_pdf_with_playwright(html_path: Path, pdf_path: Path, base_url: str) -
             )
         except Exception:
             pass
-        # Wait for local + remote URL images so max-height sizing uses real dimensions.
+        try:
+            page.evaluate(
+                """async () => {
+                  if (!document.fonts) return;
+                  await document.fonts.ready;
+                  await Promise.all([
+                    document.fonts.load('16px PaperSong'),
+                    document.fonts.load('16px PaperTimes'),
+                    document.fonts.load('700 16px PaperSong'),
+                    document.fonts.load('700 16px PaperTimes'),
+                  ]);
+                  const probe = document.createElement('div');
+                  probe.setAttribute('aria-hidden', 'true');
+                  probe.style.cssText =
+                    'position:absolute;left:-99999px;top:0;font-family:PaperSong,PaperTimes,serif;font-size:16px;';
+                  probe.textContent = '汉字嵌入测试中文排版';
+                  document.body.appendChild(probe);
+                  void probe.offsetWidth;
+                  await document.fonts.ready;
+                }"""
+            )
+        except Exception:
+            pass
         try:
             page.wait_for_function(
                 """() => {
@@ -672,6 +759,8 @@ def main(argv: list[str] | None = None) -> int:
         html_path.parent.mkdir(parents=True, exist_ok=True)
     pdf_path.parent.mkdir(parents=True, exist_ok=True)
 
+    times_font, simsun_font = stage_fonts_beside(html_path)
+
     if is_html_input:
         # Directly print an existing HTML file (e.g. AI-beautified *_paper.html).
         html = input_path.read_text(encoding="utf-8")
@@ -703,10 +792,21 @@ def main(argv: list[str] | None = None) -> int:
                 limit_chunks=args.limit_chunks,
                 progress=print,
             )
-            html = assemble_html(title=title, body=body2, extra_css=ai_css)
+            html = assemble_html(
+                title=title,
+                body=body2,
+                extra_css=ai_css,
+                times_font=times_font,
+                simsun_font=simsun_font,
+            )
             print("Using AI-beautified HTML")
         else:
-            html = md_to_html(md_text, title=title)
+            html = md_to_html(
+                md_text,
+                title=title,
+                times_font=times_font,
+                simsun_font=simsun_font,
+            )
         html_path.write_text(html, encoding="utf-8")
 
     try:

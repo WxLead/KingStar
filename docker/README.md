@@ -96,4 +96,5 @@ docker compose -f docker/docker-compose.yml --env-file docker/.env up -d web api
 - **`mineru: down`**：服务器容器、`curl http://IP:8000/health`、安全组  
 - **`compose down` not found**：根目录执行并加 `-f docker/docker-compose.yml`  
 - **PDF worker / `.mjs`**：强刷缓存；nginx 需对 `.mjs` 返回 `application/javascript`  
+- **译文 PDF 中文黑方块 / 非宋体**：确认 `api` 镜像已 rebuild（会安装 `SIMSUN.TTF`/`TIMES.TTF` 为系统字体）；不要用 `fonts-noto-cjk` 顶替  
 - **翻译失败**：检查 `DEEPSEEK_API_KEY`
