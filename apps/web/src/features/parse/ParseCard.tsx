@@ -67,7 +67,7 @@ function UploadPanel() {
       <div className="mx-auto flex w-full max-w-[920px] flex-1 flex-col justify-center overflow-y-auto px-8 py-8 sm:px-12">
         <motion.div variants={rise} className="flex flex-col items-center">
           <h1 className="text-gradient-flow font-display text-[38px] leading-tight tracking-wide">
-            StarT智能解析
+            StarT
           </h1>
           <p className="mt-3 text-center text-[16px] text-ink-soft">
             上传论文 PDF，进入预览与版面分析

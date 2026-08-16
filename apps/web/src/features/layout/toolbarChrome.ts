@@ -11,9 +11,9 @@ export const pageToolbarInner =
 export const sectionToolbarInner =
   'relative flex h-12 items-center justify-between gap-3 px-4'
 
-/** Filter strip under section / page headers */
+/** Filter strip under section / page headers (single row, never wraps) */
 export const filterToolbarInner =
-  'relative z-30 flex h-12 items-center gap-2 px-4'
+  'relative z-30 flex h-12 items-center gap-2 overflow-x-auto overflow-y-hidden whitespace-nowrap px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 
 export const toolbarIconBox =
   'flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] bg-white text-[#4f46e5] shadow-sm ring-1 ring-[#e4e6f2]'

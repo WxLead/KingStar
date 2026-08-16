@@ -136,18 +136,20 @@ export default function FavoritesPage() {
 
   return (
     <div className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-[#e8e9f4] bg-[#f8f8fd]">
-      <ListPageHero title="我的收藏" />
-
-      {favorites.length > 0 ? (
-        <ShelfFilterBar
-          items={favorites}
-          filters={filters}
-          onChange={onFiltersChange}
-          arrange={arrange}
-          onArrangeChange={setArrange}
-          hideFavoritedFilter
-        />
-      ) : null}
+      <ListPageHero
+        title="我的收藏"
+        action={
+          favorites.length > 0 ? (
+            <ShelfFilterBar
+              items={favorites}
+              filters={filters}
+              onChange={onFiltersChange}
+              arrange={arrange}
+              onArrangeChange={setArrange}
+            />
+          ) : undefined
+        }
+      />
 
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
         {loading && <p className="text-[14px] text-[#9aa0b8]">加载中…</p>}

@@ -272,7 +272,7 @@ function PaneHeader({
             <span className={toolbarCountBadge}>{count}</span>
           ) : null}
         </div>
-        {trailing ? <div className="shrink-0">{trailing}</div> : null}
+        {trailing ? <div className="ml-auto min-w-0 shrink-0">{trailing}</div> : null}
       </div>
     </div>
   )
@@ -544,13 +544,15 @@ export default function LibraryPage() {
                   icon={<BookMarked size={13} />}
                   title="全部文献"
                   count={shelfItems.length}
-                />
-                <ShelfFilterBar
-                  items={readable}
-                  filters={filters}
-                  onChange={onFiltersChange}
-                  arrange={arrange}
-                  onArrangeChange={setArrange}
+                  trailing={
+                    <ShelfFilterBar
+                      items={readable}
+                      filters={filters}
+                      onChange={onFiltersChange}
+                      arrange={arrange}
+                      onArrangeChange={setArrange}
+                    />
+                  }
                 />
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 [scrollbar-width:thin] [scrollbar-color:#c9cce4_transparent]">
                   {shelfItems.length === 0 ? (
