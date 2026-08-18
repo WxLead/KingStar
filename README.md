@@ -14,10 +14,7 @@
 
 <br />
 
-<img src="docs/screenshots/reading.png" alt="StarT 阅读室 — 双语阅读 · 笔记 · AI 助手" width="920" />
-
-<p><sub>论文示例：<a href="https://arxiv.org/abs/2607.01804">VLA-Corrector</a> — 解析后可原文/译文对照阅读，笔记与 AI 助手同屏协作</sub></p>
-
+<img src="docs/screenshots/parse-paper.png" alt="StarT 阅读室 — 双语阅读 · 笔记 · AI 助手" width="920" />
 </div>
 
 ---
@@ -60,12 +57,6 @@
 ## 📸 界面预览
 
 <div align="center">
-
-<h3>版面解析 · PDF 框选与 Markdown 联动</h3>
-<p><sub>论文示例：<a href="https://arxiv.org/abs/2607.01804">VLA-Corrector</a>（arXiv:2607.01804）</sub></p>
-<img src="docs/screenshots/parse-paper.png" alt="版面解析 — PDF 框选与 Markdown 译文" width="920" />
-
-<br /><br />
 
 <h3>阅读室 · 原文 / 译文 / 笔记 / AI 同屏</h3>
 <img src="docs/screenshots/reading.png" alt="阅读室 — 双语阅读与 AI 助手" width="920" />
