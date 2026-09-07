@@ -7,6 +7,9 @@ scripts/.logs/
 scripts/.dev-pids.json
 backups/
 
+# MinerU
+MinerU/
+
 # Node
 node_modules
 dist
