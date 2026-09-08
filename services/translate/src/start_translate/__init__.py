@@ -1,4 +1,4 @@
-﻿"""StarT translate package: MinerU Markdown EN→ZH + PDF export."""
+"""KingStar translate package: MinerU Markdown EN→ZH + PDF export."""
 
 from __future__ import annotations
 

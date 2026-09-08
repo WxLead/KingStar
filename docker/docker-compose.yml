@@ -1,4 +1,4 @@
-# StarT product stack (web + api). MinerU is external by default.
+# KingStar product stack (web + api). MinerU is external by default.
 #
 # Host ports (override in docker/.env if defaults are busy):
 #   START_WEB_PORT=3000   START_API_PORT=8080   MINERU_PORT=8000

@@ -1,4 +1,4 @@
-"""Parse result schemas for StarT product layer."""
+"""Parse result schemas for KingStar product layer."""
 
 from __future__ import annotations
 

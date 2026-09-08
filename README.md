@@ -1,6 +1,8 @@
 <div align="center">
 
-# StarT
+<img src="apps/web/public/logo.svg" alt="KingStar" width="96" height="96" />
+
+# KingStar
 
 **本地优先的论文工作台 — 解析 · 翻译 · 阅读 · 管理**
 
@@ -14,7 +16,7 @@
 
 <br />
 
-<img src="docs/screenshots/parse-paper.png" alt="StarT 阅读室 — 双语阅读 · 笔记 · AI 助手" width="920" />
+<img src="docs/screenshots/parse-paper.png" alt="KingStar 阅读室 — 双语阅读 · 笔记 · AI 助手" width="920" />
 </div>
 
 ---
@@ -80,7 +82,7 @@
 
 ## 🏗 架构
 
-StarT 采用 **前端 + BFF + 引擎适配** 的单体仓库结构。Web 只与 BFF 通信；MinerU 与 LLM 作为可替换引擎外接。
+KingStar 采用 **前端 + BFF + 引擎适配** 的单体仓库结构。Web 只与 BFF 通信；MinerU 与 LLM 作为可替换引擎外接。
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
@@ -111,7 +113,7 @@ StarT 采用 **前端 + BFF + 引擎适配** 的单体仓库结构。Web 只与 
 | `docker/` | 产品镜像 Compose（web + api） |
 | `docs/` | 架构、API、截图 |
 
-> **设计原则：** MinerU 是引擎而非 StarT 源码的一部分；推荐 **StarT 与 MinerU 分体部署**，通过 HTTP 连接。
+> **设计原则：** MinerU 是引擎而非 KingStar 源码的一部分；推荐 **KingStar 与 MinerU 分体部署**，通过 HTTP 连接。
 
 ---
 
@@ -129,8 +131,8 @@ StarT 采用 **前端 + BFF + 引擎适配** 的单体仓库结构。Web 只与 
 ### 方式一 · 本地开发（推荐上手）
 
 ```powershell
-git clone https://github.com/WxLead/StarT.git
-cd StarT
+git clone https://github.com/WxLead/KingStar.git
+cd KingStar
 
 # 1) 安装 BFF 依赖
 cd services/api
@@ -162,7 +164,7 @@ cd ../..
 <summary><b>Linux / macOS</b></summary>
 
 ```bash
-git clone https://github.com/WxLead/StarT.git && cd StarT
+git clone https://github.com/WxLead/KingStar.git && cd KingStar
 
 cd services/api && python3 -m venv .venv && source .venv/bin/activate
 pip install -e ../parse -e ../translate -e .
@@ -178,7 +180,7 @@ export MINERU_API_URL=http://<your-mineru-host>:8000
 
 ### 方式二 · Docker 分体部署
 
-**顺序：先起 MinerU（GPU 机），再起 StarT（本机 / 业务机）。**
+**顺序：先起 MinerU（GPU 机），再起 KingStar（本机 / 业务机）。**
 
 ```powershell
 copy docker\.env.example docker\.env
@@ -262,7 +264,7 @@ cd apps/web && npm run dev
 |------|------|
 | [docs/architecture.md](docs/architecture.md) | 架构与设计原则 |
 | [docs/agent.md](docs/agent.md) | 研究助手：DeepSeek Harness + MCP 文献工具、API |
-| [docs/agent-dsh-integration-plan.md](docs/agent-dsh-integration-plan.md) | StarT × dsh 真接入方案 |
+| [docs/agent-dsh-integration-plan.md](docs/agent-dsh-integration-plan.md) | KingStar × dsh 真接入方案 |
 | [docs/agent-v2-plan.md](docs/agent-v2-plan.md) | 研究助手 v2 早期方案（自研 loop，已由 dsh gateway 替代） |
 | [docs/local-dev.md](docs/local-dev.md) | 本地开发补充 |
 | [docs/api-contracts.md](docs/api-contracts.md) | BFF API 契约 |
@@ -296,8 +298,8 @@ cd apps/web && npm run dev
 
 <div align="center">
 
-**StarT** — 让论文从 PDF 到可读、可管、可引，一气呵成。
+**KingStar** — 让论文从 PDF 到可读、可管、可引，一气呵成。
 
-[⭐ Star this repo](https://github.com/WxLead/StarT) · [Report Bug](https://github.com/WxLead/StarT/issues) · [Request Feature](https://github.com/WxLead/StarT/issues)
+[⭐ Star this repo](https://github.com/WxLead/KingStar) · [Report Bug](https://github.com/WxLead/KingStar/issues) · [Request Feature](https://github.com/WxLead/KingStar/issues)
 
 </div>

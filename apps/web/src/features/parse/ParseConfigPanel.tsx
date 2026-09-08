@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown } from 'lucide-react'
 
-/** StarT UI mode → MinerU API backend */
+/** KingStar UI mode → MinerU API backend */
 export type ParseMode = 'pipeline' | 'local' | 'remote'
 
 export type ParseConfigValue = {

@@ -160,7 +160,7 @@ try {
   Write-Host "       log: $logPath" -ForegroundColor DarkGray
 }
 
-Write-Host "StarT root: $Root" -ForegroundColor Green
+Write-Host "KingStar root: $Root" -ForegroundColor Green
 Write-Host "Mode:       $Mode" -ForegroundColor Green
 
 # --- MinerU ---
@@ -186,7 +186,7 @@ if ($SkipMinerU) {
       $mineruCmd = "& '$venvActivate'; $mineruCmd"
     }
     Write-Host "[start] MinerU :8000  ($MinerUHome)" -ForegroundColor Cyan
-    Start-DevService -Name "mineru" -Port 8000 -Title "StarT MinerU :8000" `
+    Start-DevService -Name "mineru" -Port 8000 -Title "KingStar MinerU :8000" `
       -WorkingDirectory $MinerUHome -Command $mineruCmd
   }
 }
@@ -208,7 +208,7 @@ if ((Test-PortListening 8080) -and (Test-HttpOk "http://127.0.0.1:8080/api/v1/he
   # often respawns under Anaconda/system Python and serves a stale package.
   $bffCmd = "& '$apiPython' -m uvicorn start_api.main:app --host 127.0.0.1 --port 8080"
   Write-Host "[start] BFF :8080" -ForegroundColor Cyan
-  Start-DevService -Name "bff" -Port 8080 -Title "StarT BFF :8080" `
+  Start-DevService -Name "bff" -Port 8080 -Title "KingStar BFF :8080" `
     -WorkingDirectory $ApiDir -Command $bffCmd
 }
 
@@ -223,7 +223,7 @@ if ((Test-PortListening 3000) -and (Test-HttpOk "http://127.0.0.1:3000/")) {
     Write-Host "[warn] :3000 occupied but Web not responding; starting anyway" -ForegroundColor Yellow
   }
   Write-Host "[start] Web :3000" -ForegroundColor Cyan
-  Start-DevService -Name "web" -Port 3000 -Title "StarT Web :3000" `
+  Start-DevService -Name "web" -Port 3000 -Title "KingStar Web :3000" `
     -WorkingDirectory $WebDir -Command "npm run dev"
 }
 

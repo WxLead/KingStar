@@ -19,7 +19,7 @@ ARXIV_RE = re.compile(
 )
 
 USER_AGENT = (
-    "StarT/0.1 (mailto:"
+    "KingStar/0.1 (mailto:"
     + os.getenv("CROSSREF_MAILTO", os.getenv("START_CONTACT_EMAIL", "start@localhost"))
     + ")"
 )

@@ -1,6 +1,6 @@
 # services/translate
 
-StarT translation package (migrated from standalone `Translation/`).
+KingStar translation package (migrated from standalone `Translation/`).
 
 ## Install
 

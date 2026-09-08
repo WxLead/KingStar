@@ -1,11 +1,11 @@
-# Docker · 分体部署（StarT web + api ∥ MinerU 独立）
+# Docker · 分体部署（KingStar web + api ∥ MinerU 独立）
 
-**推荐架构：** StarT 只跑产品镜像（`docker-web` / `docker-api`）；MinerU 在 GPU 机器上用官方 `mineru:latest` 单独启动。两边用 `MINERU_API_URL` 连接。
+**推荐架构：** KingStar 只跑产品镜像（`docker-web` / `docker-api`）；MinerU 在 GPU 机器上用官方 `mineru:latest` 单独启动。两边用 `MINERU_API_URL` 连接。
 
 完整说明见仓库根目录 [README.md](../README.md#a-分体-docker-部署推荐)。
 
 ```text
-本机 StarT: web(:3000) + api(:8080)
+本机 KingStar: web(:3000) + api(:8080)
        │
        │  MINERU_API_URL=http://<GPU服务器>:8000
        ▼
@@ -34,7 +34,7 @@ curl -f http://127.0.0.1:8000/health
 
 ---
 
-## 2. 本机：StarT web + api
+## 2. 本机：KingStar web + api
 
 仓库根目录：
 
@@ -52,7 +52,7 @@ docker compose -f docker/docker-compose.yml --env-file docker/.env up --build -d
 | 场景 | 值 |
 |------|-----|
 | 远程 MinerU Docker | `http://<IP>:8000` |
-| 本机 MinerU（给 StarT 容器访问） | `http://host.docker.internal:8000` |
+| 本机 MinerU（给 KingStar 容器访问） | `http://host.docker.internal:8000` |
 
 ### 端口（可在 `.env` 改）
 
@@ -84,8 +84,8 @@ docker compose -f docker/docker-compose.yml --env-file docker/.env up -d web api
 
 | 改动 | 操作 |
 |------|------|
-| StarT 前端 / `nginx.conf` / `Dockerfile.web` | `up --build -d web` |
-| StarT 后端 / `Dockerfile.api` | `up --build -d api` |
+| KingStar 前端 / `nginx.conf` / `Dockerfile.web` | `up --build -d web` |
+| KingStar 后端 / `Dockerfile.api` | `up --build -d api` |
 | 仅 `docker/.env` | `up -d`（不 build） |
 | MinerU Dockerfile / 模型 | 在 MinerU 目录重新 `docker build` 并重启其 compose |
 

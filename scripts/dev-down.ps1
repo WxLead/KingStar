@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Stop StarT local dev processes (ports 8000 / 8080 / 3000 + tracked PIDs).
+  Stop KingStar local dev processes (ports 8000 / 8080 / 3000 + tracked PIDs).
 #>
 $ErrorActionPreference = "Continue"
 $PidFile = Join-Path $PSScriptRoot ".dev-pids.json"

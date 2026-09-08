@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Zip StarT data directory (start.db, uploads, tasks, llm_settings).
+  Zip KingStar data directory (start.db, uploads, tasks, llm_settings).
 
 .PARAMETER DataDir
   Override START_DATA_DIR. Default: env START_DATA_DIR, else services/api/.data

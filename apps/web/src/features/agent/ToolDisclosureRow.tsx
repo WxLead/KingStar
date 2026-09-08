@@ -26,7 +26,7 @@ export function ToolDisclosureRow({ title, summary, state, bodyRaw, output, icon
         type="button"
         disabled={!hasBody}
         onClick={() => hasBody && setOpen((v) => !v)}
-        className="flex h-7 w-full min-w-0 items-center gap-2 rounded-md px-1.5 text-left text-[13px] text-[#5a6486] transition hover:bg-[#f0f3fa] disabled:cursor-default disabled:hover:bg-transparent"
+        className="flex h-7 w-full min-w-0 items-center gap-2 rounded-md px-1.5 text-left text-[14px] text-[#5a6486] transition hover:bg-[#f0f3fa] disabled:cursor-default disabled:hover:bg-transparent"
       >
         <span className="flex h-4 w-4 shrink-0 items-center justify-center text-[#4176e6]">
           {state === 'running' ? (
@@ -55,7 +55,7 @@ export function ToolDisclosureRow({ title, summary, state, bodyRaw, output, icon
               <div className="mb-0.5 text-[11px] font-semibold uppercase tracking-wide text-[#9aa0b8]">
                 Input
               </div>
-              <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md bg-[#f6f8fc] px-2 py-1.5 font-mono text-[12px] text-[#3a4568]">
+              <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md bg-[#f6f8fc] px-2 py-1.5 font-mono text-[13px] text-[#3a4568]">
                 {bodyRaw}
               </pre>
             </div>
@@ -65,7 +65,7 @@ export function ToolDisclosureRow({ title, summary, state, bodyRaw, output, icon
               <div className="mb-0.5 text-[11px] font-semibold uppercase tracking-wide text-[#9aa0b8]">
                 Output
               </div>
-              <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-md bg-[#f6f8fc] px-2 py-1.5 font-mono text-[12px] text-[#3a4568]">
+              <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-md bg-[#f6f8fc] px-2 py-1.5 font-mono text-[13px] text-[#3a4568]">
                 {output}
               </pre>
             </div>

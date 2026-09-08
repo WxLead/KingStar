@@ -1,33 +1,32 @@
-import {
-  pageToolbarInner,
-  toolbarSurface,
-} from '@/features/layout/toolbarChrome'
+import type { ReactNode } from 'react'
 
-/** Compact toolbar header for list pages (文献 / 任务管理 / 设置). */
+/** Shared page header: theme icon tile + solid title + right actions (flat, no card). */
 export default function ListPageHero({
   title,
-  subtitle,
+  icon,
   meta,
   action,
 }: {
   title: string
-  subtitle?: string
-  meta?: React.ReactNode
-  action?: React.ReactNode
+  icon: ReactNode
+  meta?: ReactNode
+  action?: ReactNode
 }) {
   return (
-    <header className={toolbarSurface}>
-      <div className={pageToolbarInner}>
-        <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-          <h1 className="font-display truncate text-[18px] font-semibold leading-none tracking-wide text-[#4f46e5]">
-            {title}
-          </h1>
-          {subtitle ? (
-            <p className="truncate text-[13px] text-ink-soft">{subtitle}</p>
-          ) : null}
-          {meta ? <div className="flex flex-wrap items-center gap-2">{meta}</div> : null}
+    <header className="mb-5 shrink-0">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#eef0fb] text-[#4f46e5] ring-1 ring-[#dfe1f4]">
+            {icon}
+          </span>
+          <div className="flex min-w-0 flex-col justify-center">
+            <h1 className="font-display truncate text-[22px] font-semibold leading-none tracking-wide text-[#4f46e5]">
+              {title}
+            </h1>
+            {meta ? <div className="mt-1.5 flex flex-wrap items-center gap-2">{meta}</div> : null}
+          </div>
         </div>
-        {action ? <div className="shrink-0">{action}</div> : null}
+        {action ? <div className="flex shrink-0 items-center gap-2">{action}</div> : null}
       </div>
     </header>
   )

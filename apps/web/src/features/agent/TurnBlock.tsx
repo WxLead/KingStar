@@ -61,7 +61,7 @@ function processLabel(process: AgentChatNode[], settled: boolean, turnRunning: b
 function WorkingIndicator({ toolRunning }: { toolRunning: boolean }) {
   return (
     <div
-      className="flex items-center gap-2 rounded-xl border border-[#e4e8f0] bg-[#f7f9fd] px-3 py-2 text-[13px] text-[#5a6486]"
+      className="flex items-center gap-2 rounded-xl border border-[#e4e8f0] bg-[#f7f9fd] px-3 py-2 text-[14px] text-[#5a6486]"
       aria-live="polite"
     >
       <Loader2 size={14} className="shrink-0 animate-spin text-[#4176e6]" />
@@ -88,12 +88,12 @@ function NodeView({
 }): ReactNode {
   if (node.kind === 'user') {
     return (
-      <div className="flex justify-end">
+      <div className="group flex justify-end">
         <div className="max-w-[72%]">
-          <div className="select-text rounded-[22px] bg-[#e8f0ff] px-4 py-2.5 text-[14px] leading-relaxed text-[#1e2a52] whitespace-pre-wrap break-words">
+          <div className="select-text rounded-[22px] bg-[#e8f0ff] px-4 py-2.5 text-[15px] leading-relaxed text-[#1e2a52] whitespace-pre-wrap break-words">
             {node.text}
           </div>
-          <div className="mt-1 flex justify-end">
+          <div className="mt-0.5 flex h-7 justify-end opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
             <CopyTextButton text={node.text} />
           </div>
         </div>
@@ -102,10 +102,10 @@ function NodeView({
   }
   if (node.kind === 'assistant') {
     return (
-      <div className="min-w-0 select-text">
+      <div className="group min-w-0 select-text">
         <AgentMarkdown text={node.text} streaming={node.streaming} />
         {!node.streaming && !running && node.text.trim() ? (
-          <div className="mt-1.5 flex">
+          <div className="mt-0.5 flex h-7 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
             <CopyTextButton text={node.text} />
           </div>
         ) : null}
@@ -125,7 +125,7 @@ function NodeView({
   }
   if (node.kind === 'progress') {
     return (
-      <div className="flex h-7 items-center gap-2 px-1.5 text-[13px] text-[#8b91b3]">
+      <div className="flex h-7 items-center gap-2 px-1.5 text-[14px] text-[#8b91b3]">
         <span className="font-medium text-[#5a6486]">{node.title}</span>
         <span className="h-0.5 w-0.5 rounded-full bg-[#b0b7cc]" />
         <span className="truncate">{node.message}</span>
@@ -134,7 +134,7 @@ function NodeView({
   }
   if (node.kind === 'error') {
     return (
-      <div className="rounded-xl border border-[#fecaca] bg-[#fff7f7] px-3 py-2 text-[13px] text-[#b91c1c]">
+      <div className="rounded-xl border border-[#fecaca] bg-[#fff7f7] px-3 py-2 text-[14px] text-[#b91c1c]">
         {node.message || '错误'}
       </div>
     )
@@ -142,8 +142,8 @@ function NodeView({
   if (node.kind === 'confirm') {
     return (
       <div className="rounded-xl border border-[#c7d2fe] bg-[#f5f7ff] px-3 py-2">
-        <div className="text-[12px] font-semibold text-[#8b91b3]">需要确认</div>
-        <div className="mt-1 text-[13px] text-ink">{node.message}</div>
+        <div className="text-[13px] font-semibold text-[#8b91b3]">需要确认</div>
+        <div className="mt-1 text-[14px] text-ink">{node.message}</div>
         {running && onConfirm ? (
           <div className="mt-2 flex gap-2">
             <button
@@ -221,7 +221,7 @@ export function TurnBlock({
           <button
             type="button"
             onClick={() => setCollapsed((v) => !v)}
-            className="flex h-7 items-center gap-1.5 rounded-md px-1.5 text-[13px] text-[#7a849f] transition hover:bg-[#f0f3fa] hover:text-[#3a4568]"
+            className="flex h-7 items-center gap-1.5 rounded-md px-1.5 text-[14px] text-[#7a849f] transition hover:bg-[#f0f3fa] hover:text-[#3a4568]"
           >
             {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
             <span>{processLabel(parts.process, settled, running)}</span>

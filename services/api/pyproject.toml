@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "start-api"
 version = "0.1.0"
-description = "StarT product BFF (FastAPI)"
+description = "KingStar product BFF (FastAPI)"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

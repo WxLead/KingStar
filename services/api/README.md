@@ -1,4 +1,4 @@
-# services/api — StarT BFF
+# services/api — KingStar BFF
 
 Frontend talks **only** to this service (`:8080`).
 

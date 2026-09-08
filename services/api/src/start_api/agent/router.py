@@ -91,8 +91,8 @@ def start_turn(session_id: str, body: TurnBody) -> StreamingResponse:
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
-            "X-StarT-Agent-Session-Id": session_id,
-            "X-StarT-Agent-Turn-Id": turn_id,
+            "X-KingStar-Agent-Session-Id": session_id,
+            "X-KingStar-Agent-Turn-Id": turn_id,
         },
     )
 

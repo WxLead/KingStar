@@ -1,8 +1,8 @@
-# StarT 研究助手（DeepSeek Harness）
+# KingStar 研究助手（DeepSeek Harness）
 
-本地优先的**目标驱动执行层**：自然语言下目标 → DeepSeek Harness（`profile=sdk`）自动调研/拆步，经 **MCP** 调用 StarT 文献工具做入库/解析/翻译/检索。
+本地优先的**目标驱动执行层**：自然语言下目标 → DeepSeek Harness（`profile=sdk`）自动调研/拆步，经 **MCP** 调用 KingStar 文献工具做入库/解析/翻译/检索。
 
-会话：StarT SQLite event log（UI 恢复）+ dsh `DSH_HOME` 会话（模型续聊真相）。
+会话：KingStar SQLite event log（UI 恢复）+ dsh `DSH_HOME` 会话（模型续聊真相）。
 
 > 阅读室 AI 仍是单篇问答；本页负责跨步骤执行。
 
@@ -31,7 +31,7 @@
   → Harness Gateway：DeepSeekHarness(profile=sdk).run(session_id=…)
   → dsh：web / todo / goal / subagent + mcp__start__*
   → MCP /mcp → tools.py → 文献库 / MinerU / 翻译
-  → notifications → StarT SSE + agent_events
+  → notifications → KingStar SSE + agent_events
 ```
 
 ---

@@ -1,4 +1,4 @@
-"""StarT literature tools exposed as an MCP Streamable HTTP server (serverName: start)."""
+"""KingStar literature tools exposed as an MCP Streamable HTTP server (serverName: start)."""
 
 from __future__ import annotations
 
@@ -127,9 +127,9 @@ def get_task_status(task_id: str) -> str:
 
 
 @mcp.tool
-def get_paper_text(upload_id: str, source: str = "en") -> str:
-    """Read truncated markdown for a paper (en or zh)."""
-    return _json_result("get_paper_text", {"upload_id": upload_id, "source": source})
+def get_paper_text(upload_id: str) -> str:
+    """Read the full original paper markdown (document.md). Does not return the Chinese translation."""
+    return _json_result("get_paper_text", {"upload_id": upload_id})
 
 
 @mcp.tool

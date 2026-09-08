@@ -34,18 +34,20 @@ export function CopyTextButton({
     }
   }
 
+  const label = copied ? '已复制' : '复制'
+
   return (
     <button
       type="button"
-      title={copied ? '已复制' : '复制'}
+      title={label}
+      aria-label={label}
       onClick={(e) => {
         e.stopPropagation()
         void copy()
       }}
-      className={`inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-[11px] text-[#6a70a0] transition hover:bg-[#f3f4fb] hover:text-ink ${className}`}
+      className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-[#6a70a0] transition hover:bg-[#f3f4fb] hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c7d2fe] ${className}`}
     >
-      {copied ? <Check size={13} className="text-[#059669]" /> : <Copy size={13} />}
-      {copied ? '已复制' : '复制'}
+      {copied ? <Check size={14} className="text-[#059669]" /> : <Copy size={14} />}
     </button>
   )
 }

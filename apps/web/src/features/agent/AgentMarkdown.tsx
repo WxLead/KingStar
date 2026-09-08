@@ -14,7 +14,7 @@ export function AgentMarkdown({ text, streaming }: { text: string; streaming?: b
 
   return (
     <div
-      className={`ai-chat-md md-render select-text text-[14px] leading-[1.65] text-ink ${streaming ? 'opacity-95' : ''}`}
+      className={`ai-chat-md md-render select-text text-[15px] leading-[1.7] text-ink ${streaming ? 'opacity-95' : ''}`}
     >
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}

@@ -1,4 +1,4 @@
-# StarT API Contracts (BFF)
+# KingStar API Contracts (BFF)
 
 Base URL (dev): `http://127.0.0.1:8080`
 

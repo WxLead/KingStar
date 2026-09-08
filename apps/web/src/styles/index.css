@@ -73,7 +73,7 @@
     @apply bg-background text-foreground;
   }
 }
-/* ===== StarT 主题：科研级靛蓝紫配色 + 活泼圆润字体 ===== */
+/* ===== KingStar 主题：科研级靛蓝紫配色 + 活泼圆润字体 ===== */
 @layer base {
   body {
     font-family: 'Outfit', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
@@ -120,18 +120,61 @@
   }
 }
 
-/* ===== 渐变流光文字 ===== */
+/* ===== 渐变流光文字（品牌 KingStar） ===== */
 .text-gradient-flow {
-  background: linear-gradient(90deg, #4f46e5, #7c3aed, #0ea5e9, #7c3aed, #4f46e5);
-  background-size: 300% 100%;
+  display: inline-block;
+  padding: 0.08em 0.02em 0.22em;
+  line-height: 1.35;
+  background: linear-gradient(
+    105deg,
+    #4338ca 0%,
+    #4f46e5 18%,
+    #7c3aed 36%,
+    #0ea5e9 52%,
+    #7c3aed 68%,
+    #4f46e5 84%,
+    #4338ca 100%
+  );
+  background-size: 280% 140%;
+  background-repeat: no-repeat;
   -webkit-background-clip: text;
   background-clip: text;
+  -webkit-text-fill-color: transparent;
   color: transparent;
-  animation: gradient-flow 7s linear infinite;
+  animation: gradient-flow 6s ease-in-out infinite;
 }
 @keyframes gradient-flow {
-  0% { background-position: 0% 50%; }
-  100% { background-position: 300% 50%; }
+  0% { background-position: 0% 40%; }
+  50% { background-position: 100% 60%; }
+  100% { background-position: 0% 40%; }
+}
+
+/* ===== 研究助手标题：对齐空会话页的 #4176e6 / #e8f0ff 系 ===== */
+.text-gradient-agent {
+  display: inline-block;
+  padding: 0.08em 0.02em 0.22em;
+  line-height: 1.35;
+  background: linear-gradient(
+    100deg,
+    #3566d4 0%,
+    #4176e6 28%,
+    #5b8def 50%,
+    #7ba3f0 68%,
+    #4176e6 86%,
+    #3566d4 100%
+  );
+  background-size: 260% 140%;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: gradient-agent 8s ease-in-out infinite;
+}
+@keyframes gradient-agent {
+  0% { background-position: 0% 45%; }
+  50% { background-position: 100% 55%; }
+  100% { background-position: 0% 45%; }
 }
 
 /* ===== 按钮扫光效果 ===== */

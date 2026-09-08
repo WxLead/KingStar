@@ -135,9 +135,10 @@ export default function FavoritesPage() {
   }
 
   return (
-    <div className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-[#e8e9f4] bg-[#f8f8fd]">
+    <div className="relative z-10 flex h-full min-h-0 flex-col">
       <ListPageHero
         title="我的收藏"
+        icon={<Star size={20} strokeWidth={2} />}
         action={
           favorites.length > 0 ? (
             <ShelfFilterBar
@@ -151,7 +152,7 @@ export default function FavoritesPage() {
         }
       />
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+      <div className="min-h-0 flex-1 overflow-y-auto rounded-2xl border border-[#e4e8f0] bg-white/90 px-6 py-5 shadow-sm">
         {loading && <p className="text-[14px] text-[#9aa0b8]">加载中…</p>}
         {error && <p className="text-[14px] text-[#b45309]">{error}</p>}
 

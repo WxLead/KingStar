@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Translate MinerU Markdown from English to Chinese via DeepSeek V4 Flash.
 
 Protects formulas, images, and HTML tables with placeholders so relative
@@ -640,7 +640,7 @@ def build_client_config() -> tuple[str, str, str]:
     )
     if not api_key:
         raise SystemExit(
-            "Missing API key. Configure in StarT「通用设置 → AI API」, "
+            "Missing API key. Configure in KingStar「通用设置 → AI API」, "
             "or set DEEPSEEK_API_KEY / OPENAI_API_KEY in .env."
         )
     return api_key, base_url, model

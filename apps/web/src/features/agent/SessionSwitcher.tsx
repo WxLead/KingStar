@@ -1,21 +1,24 @@
-import { ChevronDown, MessageSquare, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, MessageSquare, Trash2 } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import type { AgentSessionSummary } from '@/services/api'
+
+const UNTITLED = '新对话'
 
 type Props = {
   sessions: AgentSessionSummary[]
   activeId: string | null
   disabled?: boolean
   onSelect: (sessionId: string) => void
-  onNew: () => void
   onDelete: (sessionId: string) => void
+}
+
+function sessionLabel(title: string | null | undefined): string {
+  return title?.trim() || UNTITLED
 }
 
 export function SessionSwitcher({
@@ -23,28 +26,24 @@ export function SessionSwitcher({
   activeId,
   disabled,
   onSelect,
-  onNew,
   onDelete,
 }: Props) {
-  const active = sessions.find((s) => s.session_id === activeId)
-  const label = active?.title?.trim() || '研究助手'
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild disabled={disabled}>
         <button
           type="button"
-          className="inline-flex max-w-[min(420px,55vw)] items-center gap-1.5 rounded-xl border border-[#e4e8f0] bg-white px-3 py-2 text-left text-[13px] font-semibold text-[#3a4568] transition hover:border-[#c7d2fe] hover:text-[#4176e6] disabled:opacity-40"
-          title={label}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-[#e4e6f0] bg-white px-3 py-2 text-[13px] font-semibold text-[#6a70a0] transition hover:border-[#c7d2fe] hover:text-[#4176e6] disabled:opacity-40"
+          title="会话历史"
         >
-          <MessageSquare size={14} className="shrink-0 text-[#4176e6]" />
-          <span className="min-w-0 truncate">{label}</span>
-          <ChevronDown size={14} className="shrink-0 text-[#9aa0b8]" />
+          <MessageSquare size={14} className="shrink-0" />
+          <span>会话历史</span>
+          <ChevronDown size={14} className="shrink-0" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-72">
+      <DropdownMenuContent align="end" className="w-72">
         <DropdownMenuLabel className="text-[11px] font-bold uppercase tracking-wide text-[#8b91b3]">
-          会话
+          会话历史
         </DropdownMenuLabel>
         <div className="max-h-64 overflow-y-auto py-1">
           {sessions.length === 0 ? (
@@ -66,7 +65,7 @@ export function SessionSwitcher({
                     }`}
                     onClick={() => onSelect(s.session_id)}
                   >
-                    <span className="block truncate">{s.title?.trim() || '研究助手'}</span>
+                    <span className="block truncate">{sessionLabel(s.title)}</span>
                     <span className="block text-[10px] font-normal text-[#9aa0b8]">
                       {s.session_id.slice(0, 8)}…
                     </span>
@@ -88,14 +87,6 @@ export function SessionSwitcher({
             })
           )}
         </div>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          className="gap-2 text-[#4176e6] focus:text-[#4176e6]"
-          onSelect={() => onNew()}
-        >
-          <Plus size={14} />
-          新会话
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Bot, Loader2, Plus, Send, Square, Sparkles } from 'lucide-react'
+import { Bot, Loader2, Plus, Send, Square } from 'lucide-react'
 import {
   createAgentSession,
   confirmAgentTurn,
@@ -12,19 +12,14 @@ import {
 } from '@/services/api'
 import { useUploads } from '@/features/uploads/UploadsContext'
 import { loadSessionId, saveSessionId } from '@/features/agent/agentSessionStore'
+import { AgentEmptyState } from '@/features/agent/AgentEmptyState'
 import { SessionSwitcher } from '@/features/agent/SessionSwitcher'
 import { TodoDock } from '@/features/agent/TodoDock'
 import { TurnBlock } from '@/features/agent/TurnBlock'
 import { applyStreamEvent, groupNodesByTurn, nodesFromEvents } from '@/features/agent/timeline'
 import { projectTodosFromNodes } from '@/features/agent/todoProjection'
 import type { AgentChatNode } from '@/features/agent/types'
-
-const EXAMPLES = [
-  '检查 MinerU 和 LLM 是否就绪',
-  '在文献库搜索 transformer，列出最近几篇',
-  '调研长上下文 Transformer 近期进展：网上找相关论文，挑一篇入库并解析，写中文要点',
-  '把 https://arxiv.org/abs/1706.03762 入库并解析（先不翻译）',
-]
+import ListPageHero from '@/features/layout/ListPageHero'
 
 async function loadNodes(sessionId: string): Promise<AgentChatNode[]> {
   const { items: events } = await listAgentSessionEvents(sessionId)
@@ -47,6 +42,7 @@ export default function AgentPage() {
   /** Invalidates async loadNodes / createSession results after switch / new. */
   const viewEpochRef = useRef(0)
   const listRef = useRef<HTMLDivElement | null>(null)
+  const composerRef = useRef<HTMLTextAreaElement | null>(null)
   const goalRef = useRef(goal)
   const sessionRef = useRef(sessionId)
   const turnRef = useRef(turnId)
@@ -340,6 +336,16 @@ export default function AgentPage() {
     await confirmAgentTurn(sid, tid, item.confirmId, approved)
   }, [])
 
+  const pickExample = useCallback((prompt: string) => {
+    setGoal(prompt)
+    window.requestAnimationFrame(() => {
+      const el = composerRef.current
+      if (!el) return
+      el.focus()
+      el.setSelectionRange(prompt.length, prompt.length)
+    })
+  }, [])
+
   const onComposerKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key !== 'Enter' || e.shiftKey) return
     if (e.nativeEvent.isComposing || e.keyCode === 229) return
@@ -349,43 +355,40 @@ export default function AgentPage() {
 
   return (
     <div className="relative z-10 flex h-full min-h-0 flex-col">
-      <header className="mb-4 shrink-0">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#e8f0ff] text-[#4176e6]">
-              <Bot size={20} />
-            </span>
-            <div className="min-w-0">
-              <h1 className="font-display text-[24px] leading-tight text-ink">研究助手</h1>
-              <div className="mt-1.5">
-                <SessionSwitcher
-                  sessions={sessions}
-                  activeId={sessionId}
-                  disabled={viewLoading}
-                  onSelect={(id) => void switchSession(id)}
-                  onNew={() => void newSession()}
-                  onDelete={(id) => void deleteSession(id)}
-                />
-              </div>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => void newSession()}
-            disabled={viewLoading}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-[#e4e6f0] bg-white px-3 py-2 text-[13px] font-semibold text-[#6a70a0] transition hover:border-[#c7d2fe] hover:text-[#4176e6] disabled:opacity-40"
-          >
-            <Plus size={14} />
-            新会话
-          </button>
-        </div>
-      </header>
+      <ListPageHero
+        title="研究助手"
+        icon={<Bot size={20} strokeWidth={2} />}
+        action={
+          <>
+            <SessionSwitcher
+              sessions={sessions}
+              activeId={sessionId}
+              disabled={viewLoading}
+              onSelect={(id) => void switchSession(id)}
+              onDelete={(id) => void deleteSession(id)}
+            />
+            <button
+              type="button"
+              onClick={() => void newSession()}
+              disabled={viewLoading}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[#e4e6f0] bg-white px-3 py-2 text-[13px] font-semibold text-[#6a70a0] transition hover:border-[#c7d2fe] hover:text-[#4176e6] disabled:opacity-40"
+            >
+              <Plus size={14} />
+              新会话
+            </button>
+          </>
+        }
+      />
 
       <div className="mx-auto flex min-h-0 w-full max-w-[820px] min-w-0 flex-1 flex-col">
         <div
           key={sessionId ?? 'none'}
           ref={listRef}
-          className="min-h-0 flex-1 overflow-y-auto rounded-2xl border border-[#e4e8f0] bg-white/90 px-5 py-5 shadow-sm sm:px-6"
+          className={`min-h-0 flex-1 rounded-2xl border border-[#e4e8f0] bg-white/90 px-5 py-5 shadow-sm sm:px-6 ${
+            ready && !viewLoading && nodes.length === 0
+              ? 'overflow-hidden'
+              : 'overflow-y-auto'
+          }`}
         >
           {!ready || viewLoading ? (
             <p className="flex items-center justify-center gap-2 py-16 text-[14px] text-[#9aa0b8]">
@@ -393,24 +396,7 @@ export default function AgentPage() {
               {viewLoading ? '切换会话…' : '加载会话…'}
             </p>
           ) : nodes.length === 0 ? (
-            <div className="flex min-h-[320px] flex-col items-center justify-center text-center">
-              <Sparkles className="mb-3 text-[#4176e6]" size={28} />
-              <p className="max-w-md text-[15px] text-[#6a70a0]">
-                描述研究目标。助手会用 web / todo / 子代理调研，并用文献工具入库与解析。
-              </p>
-              <div className="mt-6 flex max-w-xl flex-wrap justify-center gap-2">
-                {EXAMPLES.map((ex) => (
-                  <button
-                    key={ex}
-                    type="button"
-                    onClick={() => setGoal(ex)}
-                    className="rounded-full border border-[#e4e8f0] bg-[#f7f9fd] px-3 py-1.5 text-left text-[13px] text-[#4176e6] transition hover:border-[#c7d2fe] hover:bg-white"
-                  >
-                    {ex}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <AgentEmptyState onPick={pickExample} />
           ) : (
             <div className="space-y-8">
               {turnGroups.map((g) => (
@@ -429,8 +415,9 @@ export default function AgentPage() {
         <div className="mt-3 shrink-0">
           <TodoDock todos={todos} />
           <div className="rounded-2xl border border-[#e4e8f0] bg-white p-3 shadow-sm focus-within:border-[#c7d2fe] focus-within:ring-2 focus-within:ring-[#e8f0ff]">
-            <div className="flex items-end gap-2">
+            <div className="flex items-center gap-2">
               <textarea
+                ref={composerRef}
                 value={goal}
                 onChange={(e) => setGoal(e.target.value)}
                 onKeyDown={onComposerKeyDown}
@@ -441,7 +428,7 @@ export default function AgentPage() {
                     : '输入目标后按 Enter 发送（Shift+Enter 换行）…'
                 }
                 disabled={!sessionId}
-                className="min-h-[72px] flex-1 resize-none rounded-xl border-0 bg-transparent px-2 py-2 text-[14px] text-ink outline-none placeholder:text-[#b0b5c9] disabled:opacity-60"
+                className="min-h-[72px] flex-1 resize-none rounded-xl border-0 bg-transparent px-2 py-2 text-[15px] text-ink outline-none placeholder:text-[#b0b5c9] disabled:opacity-60"
               />
               {running && !goal.trim() ? (
                 <button

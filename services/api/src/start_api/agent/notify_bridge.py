@@ -1,4 +1,4 @@
-"""Map DeepSeek Harness notifications → StarT agent SSE / session_log events."""
+"""Map DeepSeek Harness notifications → KingStar agent SSE / session_log events."""
 
 from __future__ import annotations
 
@@ -87,7 +87,7 @@ def _tool_result_payload(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def bridge_notification(notification: Notification) -> list[tuple[str, dict[str, Any]]]:
-    """Return zero or more (event_type, payload) pairs for StarT UI / session_log."""
+    """Return zero or more (event_type, payload) pairs for KingStar UI / session_log."""
     method = notification.method
     payload = notification.payload or {}
 
@@ -127,7 +127,7 @@ def bridge_notification(notification: Notification) -> list[tuple[str, dict[str,
         chunk = data.get("chunk")
         if not isinstance(chunk, dict):
             return []
-        # Live text deltas → StarT assistant_delta (not persisted; UI only).
+        # Live text deltas → KingStar assistant_delta (not persisted; UI only).
         if chunk.get("type") == "text-delta":
             text = str(chunk.get("text") or "")
             if not text:
@@ -198,7 +198,7 @@ def bridge_notification(notification: Notification) -> list[tuple[str, dict[str,
         return [("tool_result", body)]
 
     if etype == "user/message":
-        # Skip — we already logged the StarT user_message for this turn
+        # Skip — we already logged the KingStar user_message for this turn
         return []
 
     if etype in {

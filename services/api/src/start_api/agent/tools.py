@@ -8,7 +8,6 @@ from typing import Any
 
 from start_api.agent.deps import get_agent_deps
 
-PAPER_TEXT_MAX = 12_000
 TASK_POLL_SECONDS = 600
 POLL_INTERVAL = 1.5
 
@@ -23,13 +22,6 @@ def _err(message: str, **extra: Any) -> dict[str, Any]:
     out: dict[str, Any] = {"ok": False, "error": message}
     out.update(extra)
     return out
-
-
-def _clip(text: str, max_chars: int = PAPER_TEXT_MAX) -> tuple[str, bool]:
-    text = (text or "").strip()
-    if len(text) <= max_chars:
-        return text, False
-    return text[: max_chars - 20].rstrip() + "\n\n…（已截断）", True
 
 
 def _wait_task(task_id: str, *, timeout: float = TASK_POLL_SECONDS) -> dict[str, Any]:
@@ -270,28 +262,26 @@ def get_task_status(task_id: str) -> dict[str, Any]:
     )
 
 
-def get_paper_text(upload_id: str, source: str = "en") -> dict[str, Any]:
+def get_paper_text(upload_id: str) -> dict[str, Any]:
+    """Read full original markdown (document.md) for a paper — never the ZH translation."""
     deps = get_agent_deps()
     uid = (upload_id or "").strip()
     if not uid:
         return _err("upload_id is required")
-    src = (source or "en").strip().lower()
-    if src not in {"en", "zh"}:
-        return _err("source must be en or zh")
     try:
-        text = deps.read_paper_markdown(uid, src)
+        text = deps.read_paper_markdown(uid, "en")
     except FileNotFoundError as exc:
         return _err(str(exc))
     except Exception as exc:  # noqa: BLE001
         return _err(str(exc) or exc.__class__.__name__)
-    clipped, truncated = _clip(text)
+    body = (text or "").strip()
     return _ok(
         {
             "upload_id": uid,
-            "source": src,
-            "truncated": truncated,
-            "chars": len(clipped),
-            "text": clipped,
+            "source": "en",
+            "truncated": False,
+            "chars": len(body),
+            "text": body,
         }
     )
 
@@ -343,5 +333,5 @@ def dispatch_tool(name: str, arguments: dict[str, Any] | None) -> dict[str, Any]
 
 
 def tool_result_for_model(result: dict[str, Any]) -> str:
-    """Compact JSON for the model context."""
-    return json.dumps(result, ensure_ascii=False, default=str)[:20_000]
+    """JSON for the model context — keep full tool payloads (no truncation)."""
+    return json.dumps(result, ensure_ascii=False, default=str)

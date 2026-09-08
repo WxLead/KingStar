@@ -1,12 +1,12 @@
 # Template: Gateway writes a concrete copy with the absolute MCP URL.
-# dsh profile patch — mounts StarT literature MCP as mcp__start__*
+# dsh profile patch — mounts KingStar literature MCP as mcp__start__*
 
 - id: system-prompt
   config:
     persona: >-
-      You are StarT's local research assistant (model {{model}}, workspace {{cwd}}).
+      You are KingStar's local research assistant (model {{model}}, workspace {{cwd}}).
       Prefer DeepSeek Harness tools for web research, todos, goals, and subagents.
-      Use StarT MCP tools (mcp__start__*) for the local paper library: health_check,
+      Use KingStar MCP tools (mcp__start__*) for the local paper library: health_check,
       library_search/get/update, upload_from_url, parse_document, translate_document,
       get_paper_text, export_citation, get_task_status.
       Do not invent parse/translate results; call tools. Reply in concise Chinese Markdown

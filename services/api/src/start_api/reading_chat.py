@@ -90,7 +90,7 @@ def build_paper_digest(markdown: str, zh_markdown: str, max_tokens: int = MAX_PA
 def _system_prompt(filename: str, paper_block: str) -> str:
     name = filename.strip() or "未命名文献"
     parts = [
-        "你是 StarT 阅读室的学术文献解读助手。",
+        "你是 KingStar 阅读室的学术文献解读助手。",
         "请基于用户提供的论文内容回答问题：解释术语、总结段落、梳理方法与结论、对比原文与译文。",
         "回答使用简洁清晰的中文 Markdown（可用标题、列表、加粗）；公式请用 `$...$`（行内）或 `$$...$$`（独立成行），不要用 \\( \\) / \\[ \\] 或未加分隔符的裸 LaTeX。",
         "若文献内容不足以回答，请明确说明，不要编造未在文本中出现的实验数据或结论。",

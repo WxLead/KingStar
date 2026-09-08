@@ -1,4 +1,4 @@
-# StarT web
+# KingStar web
 FROM node:20-alpine AS build
 WORKDIR /app
 COPY apps/web/package.json apps/web/package-lock.json ./

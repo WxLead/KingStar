@@ -843,7 +843,7 @@ export async function runAgentTurnStream(
   }
   if (!res.body) throw new Error('浏览器不支持流式响应')
 
-  let turnId = res.headers.get('X-StarT-Agent-Turn-Id')
+  let turnId = res.headers.get('X-KingStar-Agent-Turn-Id')
   const reader = res.body.getReader()
   const decoder = new TextDecoder('utf-8')
   let buffer = ''

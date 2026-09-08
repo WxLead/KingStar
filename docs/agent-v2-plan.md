@@ -1,4 +1,4 @@
-# 研究助手 v2（Harness 语义 × StarT 文献域）
+# 研究助手 v2（Harness 语义 × KingStar 文献域）
 
 ## 默认决策
 
@@ -19,7 +19,7 @@ services/api BFF
     └─ parse / translate / library → MinerU / LLM
 ```
 
-原则（来自 dsh，落在 StarT）：
+原则（来自 dsh，落在 KingStar）：
 
 1. **model-visible ⟺ logged**：模型上下文只从会话事件日志投影。
 2. **turn / step**：用户一条目标 = turn；每次 LLM 请求 + 其 tool 调用 = step。
@@ -69,7 +69,7 @@ services/api BFF
 - 引入 Cordis / `npx dsh` 进安装路径
 - 默认开放 bash / 写盘
 - 向量 RAG / interpret 完整产品化（预留位即可）
-- 用 dsh Web 替换 StarT UI
+- 用 dsh Web 替换 KingStar UI
 
 ## 实施顺序
 

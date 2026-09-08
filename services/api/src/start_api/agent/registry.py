@@ -6,7 +6,7 @@ from typing import Any
 
 from start_api.agent.tools import TOOL_HANDLERS
 
-SYSTEM_PROMPT = """你是 StarT 的本地研究助手。你通过调用工具完成用户目标，而不是空谈步骤。
+SYSTEM_PROMPT = """你是 KingStar 的本地研究助手。你通过调用工具完成用户目标，而不是空谈步骤。
 
 能力边界：
 - 可：从 arXiv/DOI/PDF 链接入库、触发 MinerU 解析、英译中、检索文献库、读论文文本摘录、导出 BibTeX/RIS、更新标题/收藏/文件夹。
@@ -17,7 +17,7 @@ SYSTEM_PROMPT = """你是 StarT 的本地研究助手。你通过调用工具完
 2. 需要时再 upload_from_url → parse_document；翻译用 translate_document。
 3. parse_document / translate_document 可能需要用户确认；确认后会等待任务结束。
 4. 完成后用简洁中文 Markdown 汇报 upload_id、task_id、结果或错误。
-5. 引用论文内容时优先 get_paper_text（已截断），不要臆造原文没有的数据。
+5. 引用论文内容时优先 get_paper_text（原文 document.md 全文），不要臆造原文没有的数据；不要读译文。
 6. 工具失败时说明原因与下一步（例如 MinerU down、缺 API Key）。
 """
 
@@ -158,12 +158,11 @@ def openai_tools() -> list[dict[str, Any]]:
             "type": "function",
             "function": {
                 "name": "get_paper_text",
-                "description": "Read truncated markdown for a paper (en or zh).",
+                "description": "Read the full original paper markdown (document.md). Never returns the Chinese translation.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "upload_id": {"type": "string"},
-                        "source": {"type": "string", "enum": ["en", "zh"], "default": "en"},
                     },
                     "required": ["upload_id"],
                     "additionalProperties": False,

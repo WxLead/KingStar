@@ -1,11 +1,11 @@
-# StarT Architecture
+# KingStar Architecture
 
-StarT is a monorepo product: **web frontend + BFF + algorithm adapters**.
+KingStar is a monorepo product: **web frontend + BFF + algorithm adapters**.
 
 ## Layout
 
 ```text
-StarT/
+KingStar/
 ├── apps/web/                 # React frontend (Vite)
 ├── services/
 │   ├── api/                  # Product BFF (FastAPI) — frontend only talks here

@@ -9,6 +9,7 @@ import {
   Save,
   Loader2,
   RefreshCw,
+  Settings,
   Settings2,
   Activity,
 } from 'lucide-react'
@@ -585,15 +586,15 @@ export default function SettingsPage() {
   }, [loadHealth])
 
   return (
-    <div className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-[#e8e9f4] bg-[#f8f8fd]">
-      <ListPageHero title="通用设置" />
+    <div className="relative z-10 flex h-full min-h-0 flex-col">
+      <ListPageHero title="通用设置" icon={<Settings size={20} strokeWidth={2} />} />
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-          className="overflow-hidden rounded-2xl border border-[#e8e9f4] bg-white shadow-sm"
+          className="overflow-hidden rounded-2xl border border-[#e4e8f0] bg-white/90 shadow-sm"
         >
           <SettingsEntry
             icon={<Activity size={18} />}

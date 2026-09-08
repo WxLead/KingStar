@@ -1,6 +1,6 @@
-# StarT × DeepSeek Harness 真接入方案
+# KingStar × DeepSeek Harness 真接入方案
 
-> 目标：用上 **dsh 完整生态**（todo / goal / subagent / plan / web / MCP…），让研究助手能**多开会话、自动调研论文、并用 StarT 已有工具做入库/解析/翻译/汇总**。  
+> 目标：用上 **dsh 完整生态**（todo / goal / subagent / plan / web / MCP…），让研究助手能**多开会话、自动调研论文、并用 KingStar 已有工具做入库/解析/翻译/汇总**。  
 > 不是再抄一层语义；大脑换成 harness，`profile="sdk"`。
 
 ## 产品能力（你要的）
@@ -10,8 +10,8 @@
 | 多开会话、可续聊 | dsh durable session log；UI 多 session 列表 |
 | 像 Agent 自动干活 | `profile=sdk` 下的 todo / goal / ralph / subagent |
 | 调研论文 | dsh 自带 web search/fetch +（可选）子代理并行 |
-| 汇总整理进 StarT | 文献 MCP tools → 调 BFF：入库/解析/翻译/检索/引用/笔记 |
-| StarT 产品壳不变 | React 研究助手；**不用** `dsh web` 当产品 UI |
+| 汇总整理进 KingStar | 文献 MCP tools → 调 BFF：入库/解析/翻译/检索/引用/笔记 |
+| KingStar 产品壳不变 | React 研究助手；**不用** `dsh web` 当产品 UI |
 
 ## 架构
 
@@ -37,8 +37,8 @@
 **原则**
 
 1. **大脑 = dsh**（`profile="sdk"`，不是 `sdk-minimal`）。  
-2. **手脚 = StarT**（解析/翻译/书架仍走 BFF；经 MCP 暴露给 dsh）。  
-3. **UI = StarT**（不要用 `dsh web` 替换产品壳）。  
+2. **手脚 = KingStar**（解析/翻译/书架仍走 BFF；经 MCP 暴露给 dsh）。  
+3. **UI = KingStar**（不要用 `dsh web` 替换产品壳）。  
 4. 每部署/用户隔离 `DSH_HOME` + workspace 目录。
 
 ## 文献 MCP 工具（给 dsh 用）
@@ -117,7 +117,7 @@ MCP 名建议：`start` → 模型侧工具名 `mcp__start__parse_document` 等�
 
 ## 明确不做
 
-- 用 `dsh web` 替换 StarT UI  
+- 用 `dsh web` 替换 KingStar UI  
 - `profile=sdk-minimal`（缺 todo/goal/subagent）  
 - 继续把自研薄 loop 当主大脑  
 
@@ -129,6 +129,6 @@ MCP 名建议：`start` → 模型侧工具名 `mcp__start__parse_document` 等�
 
 1. 同一 UI 开 ≥2 个会话，互不串话，刷新可续  
 2. 一句调研目标能触发 web + todo（日志/通知可见）  
-3. 能调用 StarT MCP 完成入库/解析，书架可见产物  
+3. 能调用 KingStar MCP 完成入库/解析，书架可见产物  
 4. 进程重启后同 session_id 可续聊（在 DSH_HOME 持久化前提下）  
-5. `pip`/`pnpm` 产品依赖中 **没有** 把整个 Cordis monorepo 拷进 StarT 源码树（SDK/runtime 以包或旁路进程形式存在）
+5. `pip`/`pnpm` 产品依赖中 **没有** 把整个 Cordis monorepo 拷进 KingStar 源码树（SDK/runtime 以包或旁路进程形式存在）

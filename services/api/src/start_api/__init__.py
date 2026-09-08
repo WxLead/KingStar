@@ -1,4 +1,4 @@
-"""StarT BFF package."""
+"""KingStar BFF package."""
 
 __all__ = ["main"]
 

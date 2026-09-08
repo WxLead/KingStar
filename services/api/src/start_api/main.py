@@ -1,4 +1,4 @@
-"""StarT product BFF — FastAPI."""
+"""KingStar product BFF — FastAPI."""
 
 from __future__ import annotations
 
@@ -53,7 +53,7 @@ async def _app_lifespan(_app: FastAPI):
 
 
 app = FastAPI(
-    title="StarT API",
+    title="KingStar API",
     version="0.1.0",
     lifespan=combine_lifespans(_app_lifespan, _mcp_app.lifespan),
 )
@@ -63,7 +63,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["X-StarT-Agent-Session-Id", "X-StarT-Agent-Turn-Id"],
+    expose_headers=["X-KingStar-Agent-Session-Id", "X-KingStar-Agent-Turn-Id"],
 )
 app.include_router(library_router)
 app.include_router(agent_router)

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "start-translate"
 version = "0.1.0"
-description = "StarT translation service: MinerU Markdown EN→ZH + PDF export"
+description = "KingStar translation service: MinerU Markdown EN→ZH + PDF export"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

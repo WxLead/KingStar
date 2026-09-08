@@ -13,6 +13,7 @@ import {
   Bot,
 } from 'lucide-react'
 import { useSidebarChrome } from '@/features/layout/SidebarChrome'
+import { KingStarLogoMark } from '@/features/layout/KingStarLogoMark'
 import { BookShelfRow } from '@/features/reading/bookCover'
 import {
   formatOpenedAt,
@@ -28,32 +29,20 @@ import { useUploads } from '@/features/uploads/UploadsContext'
 import { isStageBusy, resolveStage, stageMeta } from '@/features/uploads/pipelineStage'
 import { formatUploadTime, paperDisplayTitle, type UploadItem } from '@/services/api'
 
-function StarTLogo() {
+function KingStarLogo() {
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-3.5 px-2">
-      <motion.svg
-        width="48"
-        height="48"
-        viewBox="0 0 40 40"
-        fill="none"
-        whileHover={{ rotate: 12, scale: 1.08 }}
+    <div className="flex min-w-0 flex-1 items-center gap-3.5 overflow-visible px-2">
+      <motion.div
+        whileHover={{ rotate: 8, scale: 1.08 }}
         transition={{ type: 'spring', stiffness: 300, damping: 15 }}
         className="shrink-0"
       >
-        <rect width="40" height="40" rx="12" fill="url(#starGrad)" />
-        <path
-          d="M20 8.5l3.3 6.8 7.5 1-5.5 5.2 1.4 7.4L20 25.5l-6.7 3.4 1.4-7.4-5.5-5.2 7.5-1L20 8.5z"
-          fill="#ffffff"
-        />
-        <defs>
-          <linearGradient id="starGrad" x1="0" y1="0" x2="40" y2="40">
-            <stop stopColor="#4f46e5" />
-            <stop offset="1" stopColor="#7c3aed" />
-          </linearGradient>
-        </defs>
-      </motion.svg>
-      <div className="min-w-0 leading-tight">
-        <span className="font-display block text-[32px] text-ink">StarT</span>
+        <KingStarLogoMark size={48} />
+      </motion.div>
+      <div className="flex min-w-0 items-center overflow-visible">
+        <span className="font-display text-gradient-flow text-[32px] tracking-tight">
+          KingStar
+        </span>
       </div>
     </div>
   )
@@ -214,7 +203,7 @@ export default function Sidebar() {
     <aside className="sticky top-0 flex h-screen w-[340px] shrink-0 flex-col self-start border-r border-[#e4e6f2]/80 bg-[#f7f8fc]/95 px-4 pb-6 pt-7 backdrop-blur-sm">
       <motion.div variants={container} initial="hidden" animate="show" className="flex min-h-0 flex-1 flex-col">
         <motion.div variants={itemAnim} className="flex items-start gap-1">
-          <StarTLogo />
+          <KingStarLogo />
           <button
             type="button"
             title={`收起侧边栏 (${toggleLabel})`}

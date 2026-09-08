@@ -23,9 +23,9 @@ _DEFAULT_DSH_HOME = _DATA_ROOT / "dsh_home"
 _DEFAULT_WORKSPACE = _DATA_ROOT / "dsh_workspace"
 
 _PERSONA = (
-    "You are StarT's local research assistant. "
+    "You are KingStar's local research assistant. "
     "Prefer DeepSeek Harness tools for web research, todos, goals, and subagents. "
-    "Use StarT MCP tools (mcp__start__*) for the local paper library: health_check, "
+    "Use KingStar MCP tools (mcp__start__*) for the local paper library: health_check, "
     "library_search/get/update, upload_from_url, parse_document, translate_document, "
     "get_paper_text, export_citation, get_task_status. "
     "Do not invent parse/translate results; call tools. Reply in concise Chinese Markdown "
@@ -42,7 +42,7 @@ _cancel_lock = threading.Lock()
 _active_turn_id: str | None = None
 _active_session_id: str | None = None
 _active_lock = threading.Lock()
-# StarT session_id → dsh session id valid only for the current live runtime process.
+# KingStar session_id → dsh session id valid only for the current live runtime process.
 _dsh_alias: dict[str, str] = {}
 _dsh_alias_lock = threading.Lock()
 
@@ -189,7 +189,7 @@ def _ensure_harness() -> DeepSeekHarness:
         env.update(_llm_env())
         if not env.get("DEEPSEEK_API_KEY"):
             raise RuntimeError(
-                "未配置 DEEPSEEK_API_KEY：请在 StarT 设置里保存 API Key，或设置环境变量后再试。"
+                "未配置 DEEPSEEK_API_KEY：请在 KingStar 设置里保存 API Key，或设置环境变量后再试。"
             )
 
         kwargs: dict[str, Any] = {
@@ -261,10 +261,10 @@ def shutdown() -> None:
 
 
 def _resolve_dsh_session(start_session_id: str, turn_id: str) -> str:
-    """Mint a fresh dsh session id for this StarT turn.
+    """Mint a fresh dsh session id for this KingStar turn.
 
     The SDK cannot resume a persisted session id in a new process, and an id that
-    once idled empty stays empty. StarT continuity comes from injected history.
+    once idled empty stays empty. KingStar continuity comes from injected history.
     """
     fresh = f"start-{start_session_id[:8]}-{turn_id}"
     with _dsh_alias_lock:
@@ -273,7 +273,7 @@ def _resolve_dsh_session(start_session_id: str, turn_id: str) -> str:
 
 
 def _history_for_prompt(session_id: str, *, exclude_turn_id: str, max_msgs: int = 20) -> str:
-    """Build a short text history from StarT's durable log for a fresh dsh session."""
+    """Build a short text history from KingStar's durable log for a fresh dsh session."""
     events = session_log.list_events(session_id, after_seq=0, limit=2000)
     lines: list[str] = []
     for ev in events:
@@ -302,7 +302,7 @@ def _compose_prompt(session_id: str, turn_id: str, goal: str) -> str:
     if not hist:
         return goal
     return (
-        "Earlier turns in this StarT chat (for continuity):\n"
+        "Earlier turns in this KingStar chat (for continuity):\n"
         f"{hist}\n\n"
         f"Current user request:\n{goal}"
     )
@@ -361,7 +361,7 @@ def run_turn(session_id: str, turn_id: str, goal: str) -> Iterator[str]:
                 if cancel.is_set():
                     return
                 harness = _ensure_harness()
-                # Fresh dsh session every StarT turn; continuity via StarT history.
+                # Fresh dsh session every KingStar turn; continuity via KingStar history.
                 dsh_sid = _resolve_dsh_session(session_id, turn_id)
                 prompt = _compose_prompt(session_id, turn_id, goal)
                 result = harness.run(

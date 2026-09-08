@@ -420,25 +420,23 @@ export default function TasksPage() {
     filter === 'busy' ? busyItems : filter === 'ready' ? readyItems : items
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-[#e8e9f4] bg-[#f8f8fd]">
+    <div className="relative z-10 flex h-full min-h-0 flex-col">
       <ListPageHero
         title="任务管理"
+        icon={<LayoutList size={20} strokeWidth={2} />}
         action={
           <button
             type="button"
             onClick={() => navigate('/parse')}
-            className="group relative inline-flex shrink-0 items-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-br from-[#4f46e5] to-[#6366f1] px-3.5 py-2 text-[13px] font-semibold text-white shadow-[0_8px_20px_-8px_rgba(79,70,229,0.7)] transition duration-200 hover:-translate-y-0.5 hover:from-[#4338ca] hover:to-[#4f46e5] hover:shadow-[0_12px_26px_-10px_rgba(79,70,229,0.8)] active:translate-y-0"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-[#e4e6f0] bg-white px-3 py-2 text-[13px] font-semibold text-[#6a70a0] transition hover:border-[#c7d2fe] hover:text-[#4176e6]"
           >
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.28),transparent_50%)]"
-            />
-            <Plus size={15} strokeWidth={2.5} className="relative shrink-0" />
-            <span className="relative tracking-wide">版面解析</span>
+            <Plus size={14} />
+            版面解析
           </button>
         }
       />
 
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#e4e8f0] bg-white/90 shadow-sm">
       {!loading && items.length > 0 ? (
         <TaskFilterBar
           filter={filter}
@@ -514,6 +512,7 @@ export default function TasksPage() {
             ))}
           </motion.ul>
         )}
+      </div>
       </div>
     </div>
   )
