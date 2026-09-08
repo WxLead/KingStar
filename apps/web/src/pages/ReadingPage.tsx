@@ -42,7 +42,7 @@ export default function ReadingPage() {
           >
             回文献
           </button>
-          <Link to="/" className="rounded-xl border border-[#e4e6f0] bg-white px-4 py-2 text-[13px] font-semibold text-ink-soft">
+          <Link to="/parse" className="rounded-xl border border-[#e4e6f0] bg-white px-4 py-2 text-[13px] font-semibold text-ink-soft">
             工作区
           </Link>
         </div>

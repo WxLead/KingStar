@@ -460,7 +460,7 @@ export default function LibraryPage() {
             </p>
             <button
               type="button"
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/parse')}
               className="mt-5 rounded-xl bg-[#4f46e5] px-4 py-2 text-[13px] font-semibold text-white transition hover:opacity-95"
             >
               前往上传

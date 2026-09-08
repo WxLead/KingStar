@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router'
 import AppLayout from './AppLayout'
+import AgentPage from '@/pages/AgentPage'
 import ParsePage from '@/pages/ParsePage'
 import TasksPage from '@/pages/TasksPage'
 import LibraryPage from '@/pages/LibraryPage'
@@ -11,7 +12,8 @@ export default function App() {
   return (
     <Routes>
       <Route element={<AppLayout />}>
-        <Route index element={<ParsePage />} />
+        <Route index element={<AgentPage />} />
+        <Route path="parse" element={<ParsePage />} />
         <Route path="tasks" element={<TasksPage />} />
         <Route path="library" element={<LibraryPage />} />
         <Route path="favorites" element={<FavoritesPage />} />

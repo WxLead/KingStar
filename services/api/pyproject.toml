@@ -16,7 +16,12 @@ dependencies = [
   "openai>=1.40.0",
   "python-dotenv>=1.0.0",
   "pydantic>=2.0.0",
+  "deepseek-harness-sdk>=0.1.2rc1",
+  "fastmcp>=2.0.0",
 ]
+
+[tool.setuptools.package-data]
+start_api = ["agent/dsh_patches/*.yml"]
 
 [project.scripts]
 start-api = "start_api.main:main"

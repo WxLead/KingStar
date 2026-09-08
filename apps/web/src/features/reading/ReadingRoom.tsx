@@ -480,7 +480,7 @@ export default function ReadingRoom({ item }: { item: UploadItem }) {
   }, [view])
 
   const openWorkspace = () => {
-    navigate('/')
+    navigate('/parse')
   }
 
   const openLibrary = () => {

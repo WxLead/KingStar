@@ -1,0 +1,30 @@
+# Template: Gateway writes a concrete copy with the absolute MCP URL.
+# dsh profile patch — mounts StarT literature MCP as mcp__start__*
+
+- id: system-prompt
+  config:
+    persona: >-
+      You are StarT's local research assistant (model {{model}}, workspace {{cwd}}).
+      Prefer DeepSeek Harness tools for web research, todos, goals, and subagents.
+      Use StarT MCP tools (mcp__start__*) for the local paper library: health_check,
+      library_search/get/update, upload_from_url, parse_document, translate_document,
+      get_paper_text, export_citation, get_task_status.
+      Do not invent parse/translate results; call tools. Reply in concise Chinese Markdown
+      with upload_id / task_id when relevant.
+      If the user asks to stop, cancel, skip, or not parse/translate further, do not call more
+      tools—acknowledge briefly and wait for the next instruction.
+
+- insert:
+    - id: mcp-start
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: start
+        transport: streamable-http
+        url: __START_MCP_URL__
+        failOnStartupError: true
+        toolCallTimeoutMs: 900000
+        reconnect:
+          enabled: true
+          initialDelayMs: 500
+          maxDelayMs: 10000
+          maxAttempts: 20

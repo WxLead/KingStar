@@ -8,6 +8,7 @@ import os
 import shutil
 import threading
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
@@ -15,6 +16,7 @@ from typing import Any, Literal
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
+from fastmcp.utilities.lifespan import combine_lifespans
 from pydantic import BaseModel, Field
 
 TaskStatus = Literal["queued", "parsing", "translating", "done", "failed"]
@@ -30,19 +32,42 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 TASK_DIR.mkdir(parents=True, exist_ok=True)
 
 from start_api import db as library_db  # noqa: E402
+from start_api.agent.deps import AgentDeps, configure_agent  # noqa: E402
+from start_api.agent.mcp_server import create_mcp_http_app  # noqa: E402
+from start_api.agent.router import router as agent_router  # noqa: E402
+from start_api.agent import session_log as agent_session_log  # noqa: E402
 from start_api.library import configure_library, reindex_upload, run_identify, router as library_router  # noqa: E402
 
 library_db.init_db(DATA_DIR)
+agent_session_log.ensure_agent_tables()
 
-app = FastAPI(title="StarT API", version="0.1.0")
+_mcp_app = create_mcp_http_app()
+
+
+@asynccontextmanager
+async def _app_lifespan(_app: FastAPI):
+    yield
+    from start_api.agent import harness_gateway
+
+    harness_gateway.shutdown()
+
+
+app = FastAPI(
+    title="StarT API",
+    version="0.1.0",
+    lifespan=combine_lifespans(_app_lifespan, _mcp_app.lifespan),
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-StarT-Agent-Session-Id", "X-StarT-Agent-Turn-Id"],
 )
 app.include_router(library_router)
+app.include_router(agent_router)
+app.mount("/mcp", _mcp_app)
 
 _lock = threading.Lock()
 _tasks: dict[str, dict[str, Any]] = {}
@@ -1317,6 +1342,186 @@ def reading_chat_sync(body: ReadingChatRequest) -> ReadingChatResponse:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"AI 调用失败: {exc}") from exc
+
+
+# ---------------------------------------------------------------------------
+# Agent domain ops (shared by literature tools via configure_agent)
+# ---------------------------------------------------------------------------
+
+
+def _agent_get_upload(upload_id: str) -> dict[str, Any] | None:
+    meta = _load_upload_meta(upload_id)
+    if not meta:
+        return None
+    items = _merge_library_fields([_enrich_upload_meta(dict(meta))])
+    return items[0] if items else None
+
+
+def _agent_upload_from_url(url: str) -> dict[str, Any]:
+    from start_api.url_import import download_pdf, enrich_metadata, resolve_source
+
+    source = resolve_source(url)
+    data, filename, content_type = download_pdf(
+        source.download_url, suggested_name=source.filename
+    )
+    upload_id = str(uuid.uuid4())
+    dest_dir = _upload_dir(upload_id)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / filename
+    dest.write_bytes(data)
+    size = dest.stat().st_size
+    created = _now()
+    meta = {
+        "upload_id": upload_id,
+        "filename": filename,
+        "size": size,
+        "content_type": content_type,
+        "created_at": created,
+        "last_task_id": None,
+        "last_status": None,
+        "has_zh": False,
+        "source_url": url.strip(),
+        "download_url": source.download_url,
+    }
+    _save_upload_meta(meta)
+    try:
+        patch = enrich_metadata(source.arxiv_id, source.doi)
+        if patch:
+            patch["metadata_identified_at"] = created
+            library_db.upsert_paper(upload_id, patch)
+    except Exception:
+        pass
+    return _agent_get_upload(upload_id) or meta
+
+
+def _agent_create_parse_task(
+    *,
+    upload_id: str,
+    translate: bool = False,
+    parse_backend: str = "hybrid-engine",
+    beautify: bool = False,
+    server_url: str | None = None,
+) -> dict[str, Any]:
+    upload_path = _resolve_upload_file(upload_id)
+    if upload_path is None:
+        raise ValueError("upload_id not found")
+    task_id = str(uuid.uuid4())
+    now = _now()
+    task: dict[str, Any] = {
+        "task_id": task_id,
+        "filename": upload_path.name,
+        "status": "queued",
+        "created_at": now,
+        "updated_at": now,
+        "error": None,
+        "upload_id": upload_id,
+        "upload_path": str(upload_path),
+        "translate": bool(translate),
+        "beautify": bool(beautify),
+        "parse_backend": parse_backend or "hybrid-engine",
+        "server_url": server_url,
+        "result": None,
+    }
+    _save_task(task)
+    threading.Thread(target=_run_task, args=(task_id,), daemon=True).start()
+    return {"task_id": task_id, "status": "queued", "upload_id": upload_id}
+
+
+def _agent_create_translate_task(*, task_id: str, beautify: bool = False) -> dict[str, Any]:
+    task = _load_task(task_id)
+    if not task:
+        raise ValueError("task not found")
+    md_path = _task_path(task_id) / "document.md"
+    if not md_path.is_file():
+        raise ValueError("document.md not found; finish layout analysis before translating")
+    if task.get("status") in {"queued", "parsing", "translating"}:
+        raise ValueError(f"task is busy ({task.get('status')})")
+    task["status"] = "translating"
+    task["translate"] = True
+    task["beautify"] = bool(beautify)
+    task["updated_at"] = _now()
+    task["error"] = None
+    _save_task(task)
+    threading.Thread(
+        target=_run_translate_only,
+        kwargs={"task_id": task_id, "beautify": bool(beautify)},
+        daemon=True,
+    ).start()
+    return {"task_id": task_id, "status": "translating", "upload_id": task.get("upload_id")}
+
+
+def _agent_get_task(task_id: str) -> dict[str, Any] | None:
+    return _load_task(task_id)
+
+
+def _agent_patch_paper(upload_id: str, patch: dict[str, Any]) -> dict[str, Any]:
+    tags = patch.pop("tags", None) if "tags" in patch else None
+    paper_patch = dict(patch)
+    if any(
+        k in paper_patch
+        for k in ("title", "authors", "year", "doi", "abstract", "venue", "venue_type", "arxiv_id")
+    ):
+        paper_patch.setdefault("metadata_source", "manual")
+    paper = library_db.upsert_paper(upload_id, paper_patch) if paper_patch else (
+        library_db.get_paper(upload_id) or {"upload_id": upload_id}
+    )
+    if tags is not None:
+        paper = library_db.set_paper_tags(upload_id, list(tags))
+    reindex_upload(upload_id)
+    return paper
+
+
+def _agent_search_library(query: str, limit: int) -> dict[str, Any]:
+    ids = library_db.search_upload_ids(query, limit=limit)
+    return {"query": query, "upload_ids": ids}
+
+
+def _agent_export_citation(upload_id: str, fmt: str) -> str:
+    from start_api.citations import format_citation
+
+    paper = library_db.get_paper(upload_id) or {"upload_id": upload_id}
+    paper = dict(paper)
+    paper.setdefault("upload_id", upload_id)
+    meta = _load_upload_meta(upload_id) or {}
+    filename = meta.get("filename")
+    if filename:
+        paper.setdefault("filename", filename)
+    cite_fmt: Literal["bibtex", "ris"] = "ris" if fmt == "ris" else "bibtex"
+    return format_citation(paper, cite_fmt, filename=filename)
+
+
+def _agent_read_paper_markdown(upload_id: str, source: str) -> str:
+    meta = _load_upload_meta(upload_id)
+    if not meta:
+        raise FileNotFoundError(f"upload not found: {upload_id}")
+    task_id = meta.get("last_task_id")
+    if not task_id:
+        raise FileNotFoundError("尚无解析任务，请先 parse_document")
+    work = _task_path(str(task_id))
+    path = work / ("document_zh.md" if source == "zh" else "document.md")
+    if not path.is_file():
+        label = "译文" if source == "zh" else "原文"
+        raise FileNotFoundError(f"{label}不存在：{path.name}")
+    return path.read_text(encoding="utf-8", errors="ignore")
+
+
+configure_agent(
+    AgentDeps(
+        health=health,
+        list_uploads=_list_upload_metas,
+        get_upload=_agent_get_upload,
+        upload_from_url=_agent_upload_from_url,
+        create_parse_task=_agent_create_parse_task,
+        create_translate_task=_agent_create_translate_task,
+        get_task=_agent_get_task,
+        get_paper=library_db.get_paper,
+        patch_paper=_agent_patch_paper,
+        search_library=_agent_search_library,
+        export_citation=_agent_export_citation,
+        read_paper_markdown=_agent_read_paper_markdown,
+        resolve_upload_id_for_task=lambda tid: (_load_task(tid) or {}).get("upload_id"),
+    )
+)
 
 
 def main() -> None:

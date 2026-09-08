@@ -14,6 +14,34 @@ from start_parse.schemas import ParseResult
 DEFAULT_TIMEOUT = 600.0
 
 
+def _json_or_text(response: httpx.Response) -> Any:
+    try:
+        return response.json()
+    except Exception:
+        text = (response.text or "").strip()
+        return {"message": text} if text else {}
+
+
+def _mineru_http_error(response: httpx.Response, payload: Any, *, backend: str) -> str:
+    detail = ""
+    if isinstance(payload, dict):
+        for key in ("error", "message", "detail", "reason"):
+            value = payload.get(key)
+            if value:
+                detail = str(value).strip()
+                break
+        if not detail:
+            err = payload.get("errors")
+            if isinstance(err, list) and err:
+                detail = str(err[0]).strip()
+    if not detail:
+        detail = (response.text or "").strip() or response.reason_phrase
+    return (
+        f"MinerU {response.status_code} on /file_parse "
+        f"(backend={backend}): {detail}"
+    )
+
+
 class MinerUClient:
     def __init__(self, base_url: str = "http://127.0.0.1:8000", timeout: float = DEFAULT_TIMEOUT):
         self.base_url = base_url.rstrip("/")
@@ -55,8 +83,9 @@ class MinerUClient:
             files = {"files": (path.name, f, "application/octet-stream")}
             with httpx.Client(timeout=self.timeout) as client:
                 r = client.post(f"{self.base_url}/file_parse", data=data, files=files)
-                r.raise_for_status()
-                payload = r.json()
+                payload = _json_or_text(r)
+                if r.is_error:
+                    raise RuntimeError(_mineru_http_error(r, payload, backend=backend))
 
         job_id = str(payload.get("task_id") or payload.get("job_id") or path.stem)
         return normalize_mineru_response(

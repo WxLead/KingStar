@@ -713,3 +713,169 @@ export async function exportLibraryCitations(opts: {
   }
   return res.text()
 }
+
+// --- Research assistant (session log + turns) -------------------------------
+
+export type AgentStreamEvent = {
+  event: string
+  session_id?: string
+  turn_id?: string
+  seq?: number
+  event_id?: string
+  step?: number
+  content?: string
+  tool?: string
+  arguments?: Record<string, unknown>
+  result?: { ok?: boolean; error?: string; data?: unknown }
+  ok?: boolean
+  message?: string
+  status?: string
+  tool_call_id?: string
+  confirm_id?: string
+  approved?: boolean
+  goal?: string
+  model?: string
+}
+
+async function agentRequestJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, init)
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(text || `${res.status} ${res.statusText}`)
+  }
+  return res.json() as Promise<T>
+}
+
+export async function createAgentSession(title = ''): Promise<{ session_id: string; title?: string }> {
+  return agentRequestJson('/agent/sessions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title }),
+  })
+}
+
+export type AgentSessionSummary = {
+  session_id: string
+  title?: string
+  status?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export async function listAgentSessions(limit = 30): Promise<{ items: AgentSessionSummary[] }> {
+  return agentRequestJson(`/agent/sessions?limit=${limit}`)
+}
+
+export async function listAgentSessionEvents(
+  sessionId: string,
+  afterSeq = 0,
+): Promise<{
+  items: Array<{ seq: number; type: string; payload: Record<string, unknown>; turn_id?: string }>
+}> {
+  return agentRequestJson(
+    `/agent/sessions/${encodeURIComponent(sessionId)}/events?after_seq=${afterSeq}&limit=5000`,
+  )
+}
+
+export async function archiveAgentSession(sessionId: string): Promise<void> {
+  await agentRequestJson(`/agent/sessions/${encodeURIComponent(sessionId)}/archive`, {
+    method: 'POST',
+  })
+}
+
+export async function deleteAgentSession(sessionId: string): Promise<void> {
+  await agentRequestJson(`/agent/sessions/${encodeURIComponent(sessionId)}`, {
+    method: 'DELETE',
+  })
+}
+
+export async function confirmAgentTurn(
+  sessionId: string,
+  turnId: string,
+  confirmId: string,
+  approved: boolean,
+): Promise<void> {
+  await agentRequestJson(
+    `/agent/sessions/${encodeURIComponent(sessionId)}/turns/${encodeURIComponent(turnId)}/confirm`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ confirm_id: confirmId, approved }),
+    },
+  )
+}
+
+export async function cancelAgentTurn(sessionId: string, turnId: string): Promise<void> {
+  await agentRequestJson(
+    `/agent/sessions/${encodeURIComponent(sessionId)}/turns/${encodeURIComponent(turnId)}/cancel`,
+    { method: 'POST' },
+  )
+}
+
+/** Hard-interrupt whatever turn is running for this session (no turnId required). */
+export async function interruptAgentSession(sessionId: string): Promise<{
+  ok: boolean
+  turn_id?: string | null
+  interrupted?: boolean
+}> {
+  return agentRequestJson(`/agent/sessions/${encodeURIComponent(sessionId)}/interrupt`, {
+    method: 'POST',
+  })
+}
+
+export async function runAgentTurnStream(
+  sessionId: string,
+  goal: string,
+  handlers: { onEvent?: (ev: AgentStreamEvent) => void; signal?: AbortSignal } = {},
+): Promise<string | null> {
+  const res = await fetch(`${API_BASE}/agent/sessions/${encodeURIComponent(sessionId)}/turns`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+    },
+    body: JSON.stringify({ goal }),
+    signal: handlers.signal,
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(text || `${res.status} ${res.statusText}`)
+  }
+  if (!res.body) throw new Error('浏览器不支持流式响应')
+
+  let turnId = res.headers.get('X-StarT-Agent-Turn-Id')
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder('utf-8')
+  let buffer = ''
+
+  const handleEvent = (raw: string) => {
+    const dataLine = raw
+      .split('\n')
+      .map((l) => l.trimEnd())
+      .find((l) => l.startsWith('data:'))
+    if (!dataLine) return
+    const jsonText = dataLine.replace(/^data:\s*/, '')
+    if (!jsonText || jsonText === '[DONE]') return
+    let payload: AgentStreamEvent
+    try {
+      payload = JSON.parse(jsonText) as AgentStreamEvent
+    } catch {
+      return
+    }
+    if (payload.turn_id) turnId = payload.turn_id
+    handlers.onEvent?.(payload)
+  }
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const parts = buffer.split('\n\n')
+    buffer = parts.pop() || ''
+    for (const part of parts) {
+      if (part.trim()) handleEvent(part)
+    }
+  }
+  if (buffer.trim()) handleEvent(buffer)
+  return turnId
+}

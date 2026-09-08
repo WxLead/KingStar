@@ -176,7 +176,7 @@ function TaskRow({ item }: { item: UploadItem }) {
 
   const openWorkspace = () => {
     setSelectedId(item.upload_id)
-    navigate('/')
+    navigate('/parse')
   }
 
   const openReading = () => {
@@ -426,7 +426,7 @@ export default function TasksPage() {
         action={
           <button
             type="button"
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/parse')}
             className="group relative inline-flex shrink-0 items-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-br from-[#4f46e5] to-[#6366f1] px-3.5 py-2 text-[13px] font-semibold text-white shadow-[0_8px_20px_-8px_rgba(79,70,229,0.7)] transition duration-200 hover:-translate-y-0.5 hover:from-[#4338ca] hover:to-[#4f46e5] hover:shadow-[0_12px_26px_-10px_rgba(79,70,229,0.8)] active:translate-y-0"
           >
             <span
@@ -434,7 +434,7 @@ export default function TasksPage() {
               className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.28),transparent_50%)]"
             />
             <Plus size={15} strokeWidth={2.5} className="relative shrink-0" />
-            <span className="relative tracking-wide">新解析</span>
+            <span className="relative tracking-wide">版面解析</span>
           </button>
         }
       />
@@ -479,7 +479,7 @@ export default function TasksPage() {
             </p>
             <button
               type="button"
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/parse')}
               className="mt-5 rounded-xl bg-[#4f46e5] px-4 py-2 text-[13px] font-semibold text-white transition hover:opacity-95"
             >
               前往上传

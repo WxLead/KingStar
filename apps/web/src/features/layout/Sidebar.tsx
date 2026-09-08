@@ -10,6 +10,7 @@ import {
   Settings,
   Clock3,
   FileSearch,
+  Bot,
 } from 'lucide-react'
 import { useSidebarChrome } from '@/features/layout/SidebarChrome'
 import { BookShelfRow } from '@/features/reading/bookCover'
@@ -194,7 +195,7 @@ export default function Sidebar() {
 
   const openWorkspace = (item: UploadItem) => {
     setSelectedId(item.upload_id)
-    navigate('/')
+    navigate('/parse')
   }
 
   const openReading = (item: UploadItem) => {
@@ -234,9 +235,15 @@ export default function Sidebar() {
           <NavItem
             to="/"
             end
-            icon={<Plus size={22} strokeWidth={2.5} />}
-            label="新解析"
+            icon={<Bot size={22} strokeWidth={2.5} />}
+            label="研究助手"
             primary
+            onNavigate={() => setSelectedId(null)}
+          />
+          <NavItem
+            to="/parse"
+            icon={<Plus size={22} strokeWidth={2.5} />}
+            label="版面解析"
             onNavigate={() => setSelectedId(null)}
           />
           <NavItem to="/tasks" icon={<LayoutList size={22} />} label="任务管理" />

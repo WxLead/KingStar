@@ -261,6 +261,9 @@ cd apps/web && npm run dev
 | 文档 | 内容 |
 |------|------|
 | [docs/architecture.md](docs/architecture.md) | 架构与设计原则 |
+| [docs/agent.md](docs/agent.md) | 研究助手：DeepSeek Harness + MCP 文献工具、API |
+| [docs/agent-dsh-integration-plan.md](docs/agent-dsh-integration-plan.md) | StarT × dsh 真接入方案 |
+| [docs/agent-v2-plan.md](docs/agent-v2-plan.md) | 研究助手 v2 早期方案（自研 loop，已由 dsh gateway 替代） |
 | [docs/local-dev.md](docs/local-dev.md) | 本地开发补充 |
 | [docs/api-contracts.md](docs/api-contracts.md) | BFF API 契约 |
 | [docker/README.md](docker/README.md) | Docker 分体部署 |

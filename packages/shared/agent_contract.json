@@ -1,0 +1,47 @@
+{
+  "AgentSessionStatus": ["active", "archived"],
+  "AgentTurnStatus": [
+    "running",
+    "waiting_confirm",
+    "cancelled",
+    "done",
+    "failed"
+  ],
+  "AgentEventType": [
+    "user_message",
+    "assistant_delta",
+    "assistant_message",
+    "tool_call",
+    "tool_result",
+    "job_progress",
+    "plan",
+    "todo",
+    "needs_confirm",
+    "confirm_response",
+    "compact_summary",
+    "turn_start",
+    "turn_end",
+    "error"
+  ],
+  "AgentTools": [
+    "health_check",
+    "library_search",
+    "library_get",
+    "library_update",
+    "upload_from_url",
+    "parse_document",
+    "translate_document",
+    "get_paper_text",
+    "export_citation",
+    "get_task_status"
+  ],
+  "ConfirmRequiredTools": ["parse_document", "translate_document"],
+  "DestructiveTools": [],
+  "Limits": {
+    "max_steps": 12,
+    "max_wall_seconds": 900,
+    "paper_text_max_chars": 12000,
+    "task_poll_seconds": 600,
+    "confirm_wait_seconds": 300
+  }
+}
