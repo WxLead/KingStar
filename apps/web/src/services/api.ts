@@ -805,6 +805,16 @@ export async function confirmAgentTurn(
   )
 }
 
+export async function truncateAgentFromTurn(
+  sessionId: string,
+  turnId: string,
+): Promise<{ ok: boolean; removed_turn_ids?: string[] }> {
+  return agentRequestJson(
+    `/agent/sessions/${encodeURIComponent(sessionId)}/turns/${encodeURIComponent(turnId)}/truncate`,
+    { method: 'POST' },
+  )
+}
+
 export async function cancelAgentTurn(sessionId: string, turnId: string): Promise<void> {
   await agentRequestJson(
     `/agent/sessions/${encodeURIComponent(sessionId)}/turns/${encodeURIComponent(turnId)}/cancel`,

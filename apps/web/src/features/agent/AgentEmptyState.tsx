@@ -53,7 +53,8 @@ type Props = {
 
 export function AgentEmptyState({ onPick }: Props) {
   return (
-    <div className="relative flex h-full min-h-0 flex-col items-center justify-center overflow-hidden px-2 py-4 text-center sm:px-4">
+    <div className="relative flex h-full min-h-0 flex-col items-center justify-center overflow-hidden px-5 py-6 text-center sm:px-6">
+      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[#f7f9fd]" />
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_28%,rgba(65,118,230,0.10),transparent_58%)]"

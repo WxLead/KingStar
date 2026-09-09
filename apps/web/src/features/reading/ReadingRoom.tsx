@@ -33,6 +33,7 @@ import ReadingMarkdown from '@/features/reading/ReadingMarkdown'
 import ReadingPaneHeader, { PaneFrame } from '@/features/reading/ReadingPaneHeader'
 import { AiPane, NotesPane } from '@/features/reading/ReadingSidePanel'
 import { useUploads } from '@/features/uploads/UploadsContext'
+import { appPrompt } from '@/features/ui/app-modal'
 import {
   loadParseArtifacts,
   paperDisplayTitle,
@@ -314,25 +315,38 @@ export default function ReadingRoom({ item }: { item: UploadItem }) {
 
   const addAnnotation = (withNotePrompt: boolean) => {
     if (!selQuote || !annoSource) return
-    let note = ''
-    if (withNotePrompt) {
-      note = window.prompt('批注内容（可留空）', '') ?? ''
-    }
-    const anno: Annotation = {
-      id: newAnnotationId(),
-      source: annoSource,
-      quote: selQuote.quote,
-      prefix: selQuote.prefix,
-      suffix: selQuote.suffix,
-      note: note.trim(),
-      color: 'yellow',
-      createdAt: Date.now(),
-    }
-    // Drop draft before permanent marks are applied
-    dismissSelectionUi()
-    updateAnnos((prev) => [anno, ...prev])
-    setActiveAnnoId(anno.id)
-    setAnnoOpen(true)
+    const quote = selQuote
+    const source = annoSource
+    void (async () => {
+      let note = ''
+      if (withNotePrompt) {
+        const typed = await appPrompt({
+          title: '添加批注',
+          description: '批注内容可留空，仅高亮原文。',
+          placeholder: '写下你的想法…',
+          confirmLabel: '添加',
+          allowEmpty: true,
+          multiline: true,
+        })
+        if (typed === null) return
+        note = typed
+      }
+      const anno: Annotation = {
+        id: newAnnotationId(),
+        source,
+        quote: quote.quote,
+        prefix: quote.prefix,
+        suffix: quote.suffix,
+        note: note.trim(),
+        color: 'yellow',
+        createdAt: Date.now(),
+      }
+      // Drop draft before permanent marks are applied
+      dismissSelectionUi()
+      updateAnnos((prev) => [anno, ...prev])
+      setActiveAnnoId(anno.id)
+      setAnnoOpen(true)
+    })()
   }
 
   const jumpToAnno = (id: string) => {

@@ -8,6 +8,7 @@ import {
   listAgentSessionEvents,
   listAgentSessions,
   runAgentTurnStream,
+  truncateAgentFromTurn,
   type AgentSessionSummary,
 } from '@/services/api'
 import { useUploads } from '@/features/uploads/UploadsContext'
@@ -20,6 +21,7 @@ import { applyStreamEvent, groupNodesByTurn, nodesFromEvents } from '@/features/
 import { projectTodosFromNodes } from '@/features/agent/todoProjection'
 import type { AgentChatNode } from '@/features/agent/types'
 import ListPageHero from '@/features/layout/ListPageHero'
+import { appAlert, appConfirm } from '@/features/ui/app-modal'
 
 async function loadNodes(sessionId: string): Promise<AgentChatNode[]> {
   const { items: events } = await listAgentSessionEvents(sessionId)
@@ -222,14 +224,19 @@ export default function AgentPage() {
 
   const deleteSession = useCallback(
     async (sid: string) => {
-      const ok = window.confirm('删除该会话？对话记录将无法恢复。')
+      const ok = await appConfirm({
+        title: '删除会话',
+        description: '删除该会话？对话记录将无法恢复。',
+        confirmLabel: '删除',
+        danger: true,
+      })
       if (!ok) return
       const wasActive = sid === sessionRef.current
       if (wasActive) invalidateLive(sid)
       try {
         await deleteAgentSession(sid)
       } catch (err) {
-        window.alert(err instanceof Error ? err.message : String(err))
+        await appAlert(err instanceof Error ? err.message : String(err))
         return
       }
       const remaining = sessions.filter((s) => s.session_id !== sid)
@@ -246,14 +253,14 @@ export default function AgentPage() {
     [invalidateLive, newSession, refreshSessions, sessions, switchSession],
   )
 
-  const start = useCallback(async () => {
-    const text = goalRef.current.trim()
+  const start = useCallback(async (overrideText?: string) => {
+    const text = (overrideText ?? goalRef.current).trim()
     const sid = sessionRef.current
     const epoch = viewEpochRef.current
     if (!text || !sid) return
 
     // Interrupt in-flight turn, then send the new goal.
-    if (running) {
+    if (runningRef.current) {
       await stop()
       await new Promise((r) => setTimeout(r, 400))
       // User may have switched sessions while we were stopping.
@@ -326,7 +333,7 @@ export default function AgentPage() {
         void refreshSessions()
       }
     }
-  }, [refresh, refreshSessions, running, stop])
+  }, [refresh, refreshSessions, stop])
 
   const onConfirm = useCallback(async (item: AgentChatNode, approved: boolean) => {
     const sid = sessionRef.current
@@ -335,6 +342,58 @@ export default function AgentPage() {
     if (!tid) return
     await confirmAgentTurn(sid, tid, item.confirmId, approved)
   }, [])
+
+  const dropFromTurn = useCallback((turnId: string) => {
+    setNodes((prev) => {
+      const groups = groupNodesByTurn(prev)
+      const idx = groups.findIndex((g) => g.key === turnId)
+      if (idx < 0) return prev.filter((n) => n.turnId !== turnId)
+      const drop = new Set(groups.slice(idx).map((g) => g.key))
+      return prev.filter((n) => !n.turnId || !drop.has(n.turnId))
+    })
+  }, [])
+
+  const rerunFromTurn = useCallback(
+    async (turnId: string | undefined, text: string) => {
+      const goal = text.trim()
+      const sid = sessionRef.current
+      if (!goal || !sid || !turnId) return
+
+      if (runningRef.current) {
+        await stop()
+        await new Promise((r) => setTimeout(r, 400))
+        if (sessionRef.current !== sid) return
+      }
+
+      try {
+        await truncateAgentFromTurn(sid, turnId)
+      } catch (err) {
+        await appAlert(err instanceof Error ? err.message : String(err))
+        return
+      }
+      dropFromTurn(turnId)
+      await start(goal)
+    },
+    [dropFromTurn, start, stop],
+  )
+
+  const rewriteUser = useCallback(
+    (turnId: string | undefined, text: string) => {
+      void rerunFromTurn(turnId, text)
+    },
+    [rerunFromTurn],
+  )
+
+  const regenerateTurn = useCallback(
+    (turnId?: string) => {
+      if (!turnId || runningRef.current) return
+      const user = nodes.find((n) => n.kind === 'user' && n.turnId === turnId)
+      const text = user && user.kind === 'user' ? user.text.trim() : ''
+      if (!text) return
+      void rerunFromTurn(turnId, text)
+    },
+    [nodes, rerunFromTurn],
+  )
 
   const pickExample = useCallback((prompt: string) => {
     setGoal(prompt)
@@ -384,10 +443,10 @@ export default function AgentPage() {
         <div
           key={sessionId ?? 'none'}
           ref={listRef}
-          className={`min-h-0 flex-1 rounded-2xl border border-[#e4e8f0] bg-white/90 px-5 py-5 shadow-sm sm:px-6 ${
+          className={`min-h-0 flex-1 rounded-2xl border border-[#e4e8f0] shadow-sm ${
             ready && !viewLoading && nodes.length === 0
-              ? 'overflow-hidden'
-              : 'overflow-y-auto'
+              ? 'overflow-hidden bg-[#f7f9fd] p-0'
+              : 'overflow-y-auto bg-white/90 px-5 py-5 sm:px-6'
           }`}
         >
           {!ready || viewLoading ? (
@@ -406,6 +465,8 @@ export default function AgentPage() {
                   running={running && Boolean(turnId && g.key === turnId)}
                   defaultCollapsed={g.settled}
                   onConfirm={onConfirm}
+                  onRewrite={rewriteUser}
+                  onRegenerate={regenerateTurn}
                 />
               ))}
             </div>

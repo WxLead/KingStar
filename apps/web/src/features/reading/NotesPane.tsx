@@ -35,6 +35,7 @@ import ReadingPaneHeader from '@/features/reading/ReadingPaneHeader'
 import { NotesSlashCommands } from '@/features/reading/notesSlashCommands'
 import { NotesMath } from '@/features/reading/notesMath'
 import { NotesCallout } from '@/features/reading/notesCallout'
+import { appPrompt } from '@/features/ui/app-modal'
 import {
   downloadTextFile,
   notesExportFilename,
@@ -411,13 +412,22 @@ export function NotesPane({
   const setLink = () => {
     if (!editor) return
     const prev = editor.getAttributes('link').href as string | undefined
-    const url = window.prompt('链接地址', prev || 'https://')
-    if (url === null) return
-    if (url === '') {
-      editor.chain().focus().extendMarkRange('link').unsetLink().run()
-      return
-    }
-    editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
+    void (async () => {
+      const url = await appPrompt({
+        title: '插入链接',
+        description: '留空并确定可移除当前链接。',
+        defaultValue: prev || 'https://',
+        placeholder: 'https://',
+        confirmLabel: '应用',
+        allowEmpty: true,
+      })
+      if (url === null) return
+      if (url === '') {
+        editor.chain().focus().extendMarkRange('link').unsetLink().run()
+        return
+      }
+      editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
+    })()
   }
 
   const currentColor = (editor?.getAttributes('textStyle').color as string | undefined) || ''

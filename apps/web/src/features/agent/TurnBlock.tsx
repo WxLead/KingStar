@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Check, ChevronDown, ChevronRight, Loader2, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Check, ChevronDown, ChevronRight, Loader2, Pencil, RefreshCw, X } from 'lucide-react'
 import { AgentMarkdown } from './AgentMarkdown'
 import { CopyTextButton } from './CopyTextButton'
+import { MessageIconButton } from './MessageIconButton'
 import { ToolDisclosureRow } from './ToolDisclosureRow'
 import type { AgentChatNode } from './types'
 
@@ -77,36 +78,147 @@ function WorkingIndicator({ toolRunning }: { toolRunning: boolean }) {
   )
 }
 
-function NodeView({
+function UserMessageBubble({
   node,
   running,
-  onConfirm,
+  onRewrite,
 }: {
-  node: AgentChatNode
+  node: Extract<AgentChatNode, { kind: 'user' }>
   running: boolean
-  onConfirm?: (node: AgentChatNode, approved: boolean) => void
-}): ReactNode {
-  if (node.kind === 'user') {
+  onRewrite?: (turnId: string | undefined, text: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(node.text)
+  const [submitting, setSubmitting] = useState(false)
+  const taRef = useRef<HTMLTextAreaElement | null>(null)
+
+  useEffect(() => {
+    if (!editing) setDraft(node.text)
+  }, [editing, node.text])
+
+  useEffect(() => {
+    if (!editing) return
+    const el = taRef.current
+    if (!el) return
+    el.focus()
+    el.setSelectionRange(el.value.length, el.value.length)
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 220)}px`
+  }, [editing])
+
+  const cancel = () => {
+    setDraft(node.text)
+    setEditing(false)
+  }
+
+  const submit = () => {
+    const text = draft.trim()
+    if (!text || !onRewrite || submitting) return
+    setSubmitting(true)
+    onRewrite(node.turnId, text)
+    setEditing(false)
+    setSubmitting(false)
+  }
+
+  if (editing) {
     return (
-      <div className="group flex justify-end">
-        <div className="max-w-[72%]">
-          <div className="select-text rounded-[22px] bg-[#e8f0ff] px-4 py-2.5 text-[15px] leading-relaxed text-[#1e2a52] whitespace-pre-wrap break-words">
-            {node.text}
-          </div>
-          <div className="mt-0.5 flex h-7 justify-end opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-            <CopyTextButton text={node.text} />
+      <div className="flex justify-end">
+        <div className="w-full max-w-[72%]">
+          <textarea
+            ref={taRef}
+            value={draft}
+            rows={2}
+            disabled={submitting}
+            onChange={(e) => {
+              setDraft(e.target.value)
+              const el = e.target
+              el.style.height = 'auto'
+              el.style.height = `${Math.min(el.scrollHeight, 220)}px`
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                cancel()
+                return
+              }
+              if (e.key !== 'Enter' || e.shiftKey) return
+              if (e.nativeEvent.isComposing || e.keyCode === 229) return
+              e.preventDefault()
+              submit()
+            }}
+            className="w-full resize-none rounded-[22px] border border-[#c7d2fe] bg-[#e8f0ff] px-4 py-2.5 text-[15px] leading-relaxed text-[#1e2a52] outline-none ring-2 ring-[#e8f0ff] focus:border-[#4176e6]"
+          />
+          <div className="mt-0.5 flex h-7 items-center justify-end gap-0.5">
+            <MessageIconButton title="取消" onClick={cancel}>
+              <X size={14} />
+            </MessageIconButton>
+            <MessageIconButton
+              title="发送重写"
+              disabled={!draft.trim() || submitting}
+              onClick={submit}
+            >
+              <Check size={14} />
+            </MessageIconButton>
           </div>
         </div>
       </div>
     )
+  }
+
+  return (
+    <div className="group flex justify-end">
+      <div className="max-w-[72%]">
+        <div className="select-text rounded-[22px] bg-[#e8f0ff] px-4 py-2.5 text-[15px] leading-relaxed text-[#1e2a52] whitespace-pre-wrap break-words">
+          {node.text}
+        </div>
+        <div className="mt-0.5 flex h-7 items-center justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          <CopyTextButton text={node.text} />
+          {onRewrite ? (
+            <MessageIconButton
+              title="重写"
+              disabled={running}
+              onClick={() => {
+                setDraft(node.text)
+                setEditing(true)
+              }}
+            >
+              <Pencil size={14} />
+            </MessageIconButton>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function NodeView({
+  node,
+  running,
+  onConfirm,
+  onRewrite,
+  onRegenerate,
+}: {
+  node: AgentChatNode
+  running: boolean
+  onConfirm?: (node: AgentChatNode, approved: boolean) => void
+  onRewrite?: (turnId: string | undefined, text: string) => void
+  onRegenerate?: (turnId?: string) => void
+}): ReactNode {
+  if (node.kind === 'user') {
+    return <UserMessageBubble node={node} running={running} onRewrite={onRewrite} />
   }
   if (node.kind === 'assistant') {
     return (
       <div className="group min-w-0 select-text">
         <AgentMarkdown text={node.text} streaming={node.streaming} />
         {!node.streaming && !running && node.text.trim() ? (
-          <div className="mt-0.5 flex h-7 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          <div className="mt-0.5 flex h-7 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
             <CopyTextButton text={node.text} />
+            {onRegenerate ? (
+              <MessageIconButton title="重新生成" onClick={() => onRegenerate(node.turnId)}>
+                <RefreshCw size={14} />
+              </MessageIconButton>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -182,11 +294,15 @@ export function TurnBlock({
   running,
   defaultCollapsed,
   onConfirm,
+  onRewrite,
+  onRegenerate,
 }: {
   nodes: AgentChatNode[]
   running: boolean
   defaultCollapsed: boolean
   onConfirm?: (node: AgentChatNode, approved: boolean) => void
+  onRewrite?: (turnId: string | undefined, text: string) => void
+  onRegenerate?: (turnId?: string) => void
 }) {
   const parts = useMemo(() => partitionTurnNodes(nodes), [nodes])
   const settled =
@@ -210,10 +326,12 @@ export function TurnBlock({
     parts.process.length > 0 &&
     (parts.answers.length > 0 || parts.trailing.some((n) => n.kind === 'turn_end') || running)
 
+  const nodeProps = { running, onConfirm, onRewrite, onRegenerate }
+
   return (
     <div className="space-y-3">
       {parts.leading.map((n) => (
-        <NodeView key={n.id} node={n} running={running} onConfirm={onConfirm} />
+        <NodeView key={n.id} node={n} {...nodeProps} />
       ))}
 
       {showFold ? (
@@ -230,21 +348,21 @@ export function TurnBlock({
           {!collapsed ? (
             <div className="space-y-0.5 border-l border-[#e8ecf4] pl-2">
               {parts.process.map((n) => (
-                <NodeView key={n.id} node={n} running={running} onConfirm={onConfirm} />
+                <NodeView key={n.id} node={n} {...nodeProps} />
               ))}
             </div>
           ) : null}
         </div>
       ) : (
-        parts.process.map((n) => <NodeView key={n.id} node={n} running={running} onConfirm={onConfirm} />)
+        parts.process.map((n) => <NodeView key={n.id} node={n} {...nodeProps} />)
       )}
 
       {parts.answers.map((n) => (
-        <NodeView key={n.id} node={n} running={running} onConfirm={onConfirm} />
+        <NodeView key={n.id} node={n} {...nodeProps} />
       ))}
       {showWorking ? <WorkingIndicator toolRunning={toolRunning} /> : null}
       {parts.trailing.map((n) => (
-        <NodeView key={n.id} node={n} running={running} onConfirm={onConfirm} />
+        <NodeView key={n.id} node={n} {...nodeProps} />
       ))}
     </div>
   )

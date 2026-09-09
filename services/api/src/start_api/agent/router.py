@@ -122,6 +122,20 @@ def interrupt_session_route(session_id: str) -> dict[str, Any]:
     return interrupt_session(session_id)
 
 
+@router.post("/sessions/{session_id}/turns/{turn_id}/truncate")
+def truncate_from_turn(session_id: str, turn_id: str) -> dict[str, Any]:
+    """Drop this turn and everything after it (for rewrite / regenerate)."""
+    session_log.ensure_agent_tables()
+    if not session_log.get_session(session_id):
+        raise HTTPException(status_code=404, detail="session not found")
+    # Stop live work first if this session is mid-run.
+    interrupt_session(session_id)
+    result = session_log.truncate_from_turn(session_id, turn_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="turn not found")
+    return result
+
+
 @router.post("/sessions/{session_id}/turns/{turn_id}/cancel")
 def cancel_turn(session_id: str, turn_id: str) -> dict[str, Any]:
     session_log.ensure_agent_tables()

@@ -7,6 +7,7 @@ import {
   useSidebarChrome,
   useToggleSidebarShortcutLabel,
 } from '@/features/layout/SidebarChrome'
+import { AppModalProvider } from '@/features/ui/app-modal'
 import { UploadsProvider } from '@/features/uploads/UploadsContext'
 
 function AppShell() {
@@ -71,7 +72,9 @@ export default function AppLayout() {
   return (
     <UploadsProvider>
       <SidebarChromeProvider>
-        <AppShell />
+        <AppModalProvider>
+          <AppShell />
+        </AppModalProvider>
       </SidebarChromeProvider>
     </UploadsProvider>
   )

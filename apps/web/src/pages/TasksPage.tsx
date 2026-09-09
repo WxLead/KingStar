@@ -29,6 +29,7 @@ import {
 import ListPageHero from '@/features/layout/ListPageHero'
 import TaskFilterBar, { type TaskFilter } from '@/features/tasks/TaskFilterBar'
 import { downloadTextFile } from '@/features/reading/notesExportMarkdown'
+import { appAlert, appConfirm } from '@/features/ui/app-modal'
 import { useUploads } from '@/features/uploads/UploadsContext'
 import {
   isStageBusy,
@@ -203,16 +204,22 @@ function TaskRow({ item }: { item: UploadItem }) {
         task_id: item.last_task_id,
       })
     } catch (err) {
-      alert(err instanceof Error ? err.message : '翻译启动失败')
+      await appAlert(err instanceof Error ? err.message : '翻译启动失败')
     }
   }
 
   const onDelete = async () => {
-    if (!confirm(`删除「${displayTitle}」及其解析结果？`)) return
+    const ok = await appConfirm({
+      title: '删除任务',
+      description: `删除「${displayTitle}」及其解析结果？`,
+      confirmLabel: '删除',
+      danger: true,
+    })
+    if (!ok) return
     try {
       await remove(item.upload_id)
     } catch (err) {
-      alert(err instanceof Error ? err.message : '删除失败')
+      await appAlert(err instanceof Error ? err.message : '删除失败')
     }
   }
 
@@ -223,7 +230,7 @@ function TaskRow({ item }: { item: UploadItem }) {
       await retryTask(item.last_task_id)
       await refresh()
     } catch (err) {
-      alert(err instanceof Error ? err.message : '重试失败')
+      await appAlert(err instanceof Error ? err.message : '重试失败')
     } finally {
       setRetrying(false)
     }
@@ -238,7 +245,7 @@ function TaskRow({ item }: { item: UploadItem }) {
       if (!text.trim()) throw new Error(source === 'zh' ? '暂无译文 Markdown' : '暂无原文 Markdown')
       downloadTextFile(`${baseName}${source === 'zh' ? '_zh' : ''}.md`, text)
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Markdown 导出失败')
+      await appAlert(err instanceof Error ? err.message : 'Markdown 导出失败')
     } finally {
       setExporting(false)
     }
@@ -251,7 +258,7 @@ function TaskRow({ item }: { item: UploadItem }) {
     try {
       await exportTaskPdf(taskId, source, `${baseName}${source === 'zh' ? '_zh' : ''}.pdf`)
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'PDF 导出失败')
+      await appAlert(err instanceof Error ? err.message : 'PDF 导出失败')
     } finally {
       setExporting(false)
     }

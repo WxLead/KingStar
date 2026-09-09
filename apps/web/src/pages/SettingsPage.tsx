@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import ListPageHero from '@/features/layout/ListPageHero'
+import { appConfirm } from '@/features/ui/app-modal'
 import {
   SHORTCUT_DEFS,
   bindingFromKeyboardEvent,
@@ -252,7 +253,13 @@ function LlmConfigDialog({
   }
 
   const onClearKey = async () => {
-    if (!confirm('清除已保存的 API Key？')) return
+    const ok = await appConfirm({
+      title: '清除 API Key',
+      description: '清除已保存的 API Key？',
+      confirmLabel: '清除',
+      danger: true,
+    })
+    if (!ok) return
     setSaving(true)
     setErr(null)
     setMsg(null)

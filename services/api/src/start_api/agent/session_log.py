@@ -319,3 +319,52 @@ def derive_messages(session_id: str, *, max_events: int = 400) -> list[dict[str,
             )
     flush_tools()
     return messages
+
+
+def truncate_from_turn(session_id: str, turn_id: str) -> dict[str, Any] | None:
+    """Delete this turn and all later turns/events so the session can be rewritten from here."""
+    ensure_agent_tables()
+    turn = get_turn(turn_id)
+    if not turn or turn.get("session_id") != session_id:
+        return None
+    with library_db._connect() as conn:  # noqa: SLF001
+        rows = conn.execute(
+            """
+            SELECT turn_id FROM agent_turns
+            WHERE session_id = ?
+            ORDER BY created_at ASC, turn_id ASC
+            """,
+            (session_id,),
+        ).fetchall()
+        ordered = [str(r[0]) for r in rows]
+        if turn_id not in ordered:
+            return None
+        drop = ordered[ordered.index(turn_id) :]
+        placeholders = ",".join("?" * len(drop))
+        min_row = conn.execute(
+            f"""
+            SELECT MIN(seq) FROM agent_events
+            WHERE session_id = ? AND turn_id IN ({placeholders})
+            """,
+            (session_id, *drop),
+        ).fetchone()
+        min_seq = min_row[0] if min_row else None
+        if min_seq is not None:
+            conn.execute(
+                "DELETE FROM agent_events WHERE session_id = ? AND seq >= ?",
+                (session_id, int(min_seq)),
+            )
+        conn.execute(
+            f"DELETE FROM agent_events WHERE session_id = ? AND turn_id IN ({placeholders})",
+            (session_id, *drop),
+        )
+        conn.execute(
+            f"DELETE FROM agent_turns WHERE session_id = ? AND turn_id IN ({placeholders})",
+            (session_id, *drop),
+        )
+        conn.execute(
+            "UPDATE agent_sessions SET updated_at = ? WHERE session_id = ?",
+            (_now(), session_id),
+        )
+        conn.commit()
+    return {"ok": True, "session_id": session_id, "removed_turn_ids": drop}
