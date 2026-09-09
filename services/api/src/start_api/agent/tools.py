@@ -305,6 +305,144 @@ def export_citation(upload_id: str, format: str = "bibtex") -> dict[str, Any]:
     return _ok({"upload_id": uid, "format": fmt, "citation": text})
 
 
+def publish_report(
+    title: str = "",
+    mode: str = "replace",
+    content: str = "",
+    chunk: str = "",
+    artifact_id: str | None = None,
+    status: str = "drafting",
+) -> dict[str, Any]:
+    """Stream or replace a research report artifact for the live Agent pane."""
+    from start_api.agent import artifacts
+    from start_api.agent.harness_gateway import get_active_turn, push_turn_sse
+
+    sid, tid = get_active_turn()
+    if not sid:
+        return _err("no active agent turn — publish_report only works during a live session turn")
+
+    mode_n = (mode or "replace").strip().lower()
+    if mode_n not in {"replace", "append"}:
+        return _err("mode must be replace or append")
+    status_n = (status or "drafting").strip().lower()
+    if status_n not in {"drafting", "ready", "error", "archived"}:
+        status_n = "drafting"
+
+    piece = chunk if chunk else content
+    aid = (artifact_id or "").strip() or None
+
+    # Continue convenience: append without id → latest drafting report in this session.
+    if mode_n == "append" and not aid:
+        try:
+            drafts = [
+                a
+                for a in artifacts.list_artifacts(sid, limit=20)
+                if a.get("kind") == "report" and a.get("status") == "drafting"
+            ]
+            if drafts:
+                aid = str(drafts[0].get("artifact_id") or "") or None
+        except Exception:  # noqa: BLE001
+            pass
+
+    try:
+        if mode_n == "append":
+            if not aid:
+                # First append without id → create then append semantics via replace body.
+                art = artifacts.upsert_artifact(
+                    sid,
+                    kind="report",
+                    title=title or "研究报告",
+                    status=status_n,
+                    content=piece or "",
+                    turn_id=tid,
+                    meta={"source_tool": "publish_report"},
+                )
+                push_turn_sse(
+                    "artifact_upsert",
+                    artifacts.public_view(art, include_content=True),
+                    persist=False,
+                )
+                if piece:
+                    push_turn_sse(
+                        "artifact_delta",
+                        {
+                            "artifact_id": art["artifact_id"],
+                            "chunk": piece,
+                            "status": status_n,
+                            "title": art.get("title") or title,
+                            "version": art.get("version"),
+                        },
+                        persist=False,
+                    )
+                return _ok(artifacts.public_view(art, include_content=False))
+
+            art = artifacts.append_delta(
+                sid,
+                aid,
+                piece or "",
+                title=title or None,
+                status=status_n,
+                turn_id=tid,
+            )
+            if piece:
+                push_turn_sse(
+                    "artifact_delta",
+                    {
+                        "artifact_id": art["artifact_id"],
+                        "chunk": piece,
+                        "status": status_n,
+                        "title": art.get("title") or title,
+                        "version": art.get("version"),
+                    },
+                    persist=False,
+                )
+            else:
+                push_turn_sse(
+                    "artifact_upsert",
+                    artifacts.public_view(art, include_content=True),
+                    persist=False,
+                )
+            return _ok(artifacts.public_view(art, include_content=False))
+
+        # replace
+        art = artifacts.upsert_artifact(
+            sid,
+            kind="report",
+            title=title or "研究报告",
+            status=status_n,
+            content=piece or "",
+            turn_id=tid,
+            artifact_id=aid,
+            meta={"source_tool": "publish_report"},
+            replace_content=True,
+        )
+        push_turn_sse(
+            "artifact_upsert",
+            artifacts.public_view(art, include_content=True),
+            persist=False,
+        )
+        view = artifacts.public_view(art, include_content=False)
+        if not aid:
+            try:
+                others = [
+                    a
+                    for a in artifacts.list_artifacts(sid, limit=10)
+                    if a.get("kind") == "report"
+                    and a.get("status") == "drafting"
+                    and a.get("artifact_id") != art.get("artifact_id")
+                ]
+                if others:
+                    view["warning"] = (
+                        "another drafting report exists; for 续写 use mode=append with "
+                        f"artifact_id={others[0].get('artifact_id')}"
+                    )
+            except Exception:  # noqa: BLE001
+                pass
+        return _ok(view)
+    except Exception as exc:  # noqa: BLE001
+        return _err(str(exc) or exc.__class__.__name__)
+
+
 TOOL_HANDLERS: dict[str, Any] = {
     "health_check": health_check,
     "library_search": library_search,
@@ -316,6 +454,7 @@ TOOL_HANDLERS: dict[str, Any] = {
     "get_task_status": get_task_status,
     "get_paper_text": get_paper_text,
     "export_citation": export_citation,
+    "publish_report": publish_report,
 }
 
 

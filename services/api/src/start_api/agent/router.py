@@ -136,6 +136,74 @@ def truncate_from_turn(session_id: str, turn_id: str) -> dict[str, Any]:
     return result
 
 
+@router.get("/sessions/{session_id}/artifacts")
+def list_artifacts(session_id: str, limit: int = 100) -> dict[str, Any]:
+    from start_api.agent import artifacts
+
+    session_log.ensure_agent_tables()
+    artifacts.ensure_artifact_table()
+    if not session_log.get_session(session_id):
+        raise HTTPException(status_code=404, detail="session not found")
+    items = artifacts.list_artifacts(session_id, limit=limit)
+    return {"items": [artifacts.public_view(a, include_content=True) for a in items]}
+
+
+@router.get("/sessions/{session_id}/artifacts/{artifact_id}")
+def get_artifact(session_id: str, artifact_id: str) -> dict[str, Any]:
+    from start_api.agent import artifacts
+
+    session_log.ensure_agent_tables()
+    artifacts.ensure_artifact_table()
+    if not session_log.get_session(session_id):
+        raise HTTPException(status_code=404, detail="session not found")
+    art = artifacts.get_artifact(artifact_id)
+    if not art or art.get("session_id") != session_id:
+        raise HTTPException(status_code=404, detail="artifact not found")
+    return {"artifact": artifacts.public_view(art, include_content=True)}
+
+
+class ArtifactPatchBody(BaseModel):
+    title: str | None = Field(default=None, max_length=200)
+    status: str | None = Field(default=None, max_length=32)
+
+
+@router.patch("/sessions/{session_id}/artifacts/{artifact_id}")
+def patch_artifact(session_id: str, artifact_id: str, body: ArtifactPatchBody) -> dict[str, Any]:
+    from start_api.agent import artifacts
+
+    session_log.ensure_agent_tables()
+    artifacts.ensure_artifact_table()
+    if not session_log.get_session(session_id):
+        raise HTTPException(status_code=404, detail="session not found")
+    if body.title is None and body.status is None:
+        raise HTTPException(status_code=400, detail="title or status required")
+    try:
+        art = artifacts.update_artifact(
+            session_id,
+            artifact_id,
+            title=body.title,
+            status=body.status,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not art:
+        raise HTTPException(status_code=404, detail="artifact not found")
+    return {"artifact": artifacts.public_view(art, include_content=True)}
+
+
+@router.delete("/sessions/{session_id}/artifacts/{artifact_id}")
+def delete_artifact(session_id: str, artifact_id: str) -> dict[str, Any]:
+    from start_api.agent import artifacts
+
+    session_log.ensure_agent_tables()
+    artifacts.ensure_artifact_table()
+    if not session_log.get_session(session_id):
+        raise HTTPException(status_code=404, detail="session not found")
+    if not artifacts.delete_artifact(session_id, artifact_id):
+        raise HTTPException(status_code=404, detail="artifact not found")
+    return {"ok": True, "session_id": session_id, "artifact_id": artifact_id}
+
+
 @router.post("/sessions/{session_id}/turns/{turn_id}/cancel")
 def cancel_turn(session_id: str, turn_id: str) -> dict[str, Any]:
     session_log.ensure_agent_tables()

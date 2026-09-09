@@ -716,6 +716,25 @@ export async function exportLibraryCitations(opts: {
 
 // --- Research assistant (session log + turns) -------------------------------
 
+export type AgentArtifactKind = 'report' | 'web' | 'file'
+
+export type AgentArtifact = {
+  artifact_id: string
+  session_id: string
+  turn_id?: string | null
+  kind: AgentArtifactKind
+  title: string
+  status: 'drafting' | 'ready' | 'error' | 'archived' | string
+  uri?: string | null
+  rel_path?: string | null
+  content?: string
+  meta?: Record<string, unknown>
+  version?: number
+  created_at?: string
+  updated_at?: string
+  chars?: number
+}
+
 export type AgentStreamEvent = {
   event: string
   session_id?: string
@@ -724,6 +743,7 @@ export type AgentStreamEvent = {
   event_id?: string
   step?: number
   content?: string
+  chunk?: string
   tool?: string
   arguments?: Record<string, unknown>
   result?: { ok?: boolean; error?: string; data?: unknown }
@@ -735,6 +755,16 @@ export type AgentStreamEvent = {
   approved?: boolean
   goal?: string
   model?: string
+  artifact_id?: string
+  kind?: AgentArtifactKind
+  title?: string
+  uri?: string | null
+  rel_path?: string | null
+  meta?: Record<string, unknown>
+  version?: number
+  created_at?: string
+  updated_at?: string
+  chars?: number
 }
 
 async function agentRequestJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -774,6 +804,46 @@ export async function listAgentSessionEvents(
 }> {
   return agentRequestJson(
     `/agent/sessions/${encodeURIComponent(sessionId)}/events?after_seq=${afterSeq}&limit=5000`,
+  )
+}
+
+export async function listAgentArtifacts(
+  sessionId: string,
+): Promise<{ items: AgentArtifact[] }> {
+  return agentRequestJson(`/agent/sessions/${encodeURIComponent(sessionId)}/artifacts`)
+}
+
+export async function getAgentArtifact(
+  sessionId: string,
+  artifactId: string,
+): Promise<{ artifact: AgentArtifact }> {
+  return agentRequestJson(
+    `/agent/sessions/${encodeURIComponent(sessionId)}/artifacts/${encodeURIComponent(artifactId)}`,
+  )
+}
+
+export async function patchAgentArtifact(
+  sessionId: string,
+  artifactId: string,
+  body: { title?: string; status?: string },
+): Promise<{ artifact: AgentArtifact }> {
+  return agentRequestJson(
+    `/agent/sessions/${encodeURIComponent(sessionId)}/artifacts/${encodeURIComponent(artifactId)}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+  )
+}
+
+export async function deleteAgentArtifact(
+  sessionId: string,
+  artifactId: string,
+): Promise<void> {
+  await agentRequestJson(
+    `/agent/sessions/${encodeURIComponent(sessionId)}/artifacts/${encodeURIComponent(artifactId)}`,
+    { method: 'DELETE' },
   )
 }
 

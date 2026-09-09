@@ -61,6 +61,26 @@ def ensure_agent_tables() -> None:
               ON agent_events(session_id, seq);
             CREATE INDEX IF NOT EXISTS idx_agent_turns_session
               ON agent_turns(session_id, created_at);
+
+            CREATE TABLE IF NOT EXISTS agent_artifacts (
+              artifact_id TEXT PRIMARY KEY,
+              session_id TEXT NOT NULL,
+              turn_id TEXT,
+              kind TEXT NOT NULL,
+              title TEXT NOT NULL DEFAULT '',
+              status TEXT NOT NULL DEFAULT 'drafting',
+              uri TEXT,
+              rel_path TEXT,
+              content TEXT NOT NULL DEFAULT '',
+              meta_json TEXT NOT NULL DEFAULT '{}',
+              version INTEGER NOT NULL DEFAULT 1,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              FOREIGN KEY (session_id) REFERENCES agent_sessions(session_id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_agent_artifacts_session
+              ON agent_artifacts(session_id, updated_at);
             """
         )
         conn.commit()
@@ -143,6 +163,7 @@ def delete_session(session_id: str) -> bool:
             return False
         conn.execute("DELETE FROM agent_events WHERE session_id = ?", (session_id,))
         conn.execute("DELETE FROM agent_turns WHERE session_id = ?", (session_id,))
+        conn.execute("DELETE FROM agent_artifacts WHERE session_id = ?", (session_id,))
         conn.execute("DELETE FROM agent_sessions WHERE session_id = ?", (session_id,))
         conn.commit()
     return True

@@ -3,17 +3,27 @@ import { Bot, Loader2, Plus, Send, Square } from 'lucide-react'
 import {
   createAgentSession,
   confirmAgentTurn,
+  deleteAgentArtifact,
   deleteAgentSession,
   interruptAgentSession,
+  listAgentArtifacts,
   listAgentSessionEvents,
   listAgentSessions,
+  patchAgentArtifact,
   runAgentTurnStream,
   truncateAgentFromTurn,
+  type AgentArtifact,
   type AgentSessionSummary,
 } from '@/services/api'
 import { useUploads } from '@/features/uploads/UploadsContext'
 import { loadSessionId, saveSessionId } from '@/features/agent/agentSessionStore'
 import { AgentEmptyState } from '@/features/agent/AgentEmptyState'
+import {
+  ArtifactDrawerScrim,
+  ArtifactPane,
+  ArtifactPaneToggle,
+} from '@/features/agent/ArtifactPane'
+import { applyArtifactEvent, preferActiveId } from '@/features/agent/artifactState'
 import { SessionSwitcher } from '@/features/agent/SessionSwitcher'
 import { TodoDock } from '@/features/agent/TodoDock'
 import { TurnBlock } from '@/features/agent/TurnBlock'
@@ -28,6 +38,15 @@ async function loadNodes(sessionId: string): Promise<AgentChatNode[]> {
   return nodesFromEvents(events)
 }
 
+async function loadArtifacts(sessionId: string): Promise<AgentArtifact[]> {
+  try {
+    const { items } = await listAgentArtifacts(sessionId)
+    return items
+  } catch {
+    return []
+  }
+}
+
 export default function AgentPage() {
   const { refresh } = useUploads()
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -36,6 +55,10 @@ export default function AgentPage() {
   const [running, setRunning] = useState(false)
   const [turnId, setTurnId] = useState<string | null>(null)
   const [nodes, setNodes] = useState<AgentChatNode[]>([])
+  const [artifacts, setArtifacts] = useState<AgentArtifact[]>([])
+  const [activeArtifactId, setActiveArtifactId] = useState<string | null>(null)
+  /** null = auto (open when artifacts exist); false = user hid; true = user forced open */
+  const [panePref, setPanePref] = useState<boolean | null>(null)
   const [ready, setReady] = useState(false)
   const [viewLoading, setViewLoading] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
@@ -52,6 +75,8 @@ export default function AgentPage() {
 
   const todos = useMemo(() => projectTodosFromNodes(nodes), [nodes])
   const turnGroups = useMemo(() => groupNodesByTurn(nodes), [nodes])
+  /** Auto-open when artifacts exist; user can hide (panePref=false) or force reopen (true). */
+  const showArtifactPane = artifacts.length > 0 && panePref !== false
 
   const refreshSessions = useCallback(async () => {
     try {
@@ -91,12 +116,19 @@ export default function AgentPage() {
       setSessionId(nextSid)
       saveSessionId(nextSid)
       setNodes([])
+      setArtifacts([])
+      setActiveArtifactId(null)
+      setPanePref(null)
       setGoal('')
       setViewLoading(true)
       return epoch
     },
     [invalidateLive],
   )
+
+  useEffect(() => {
+    setActiveArtifactId((cur) => preferActiveId(artifacts, cur))
+  }, [artifacts])
 
   useEffect(() => {
     const el = listRef.current
@@ -117,6 +149,8 @@ export default function AgentPage() {
             sessionRef.current = sid
             setSessionId(sid)
             setNodes(restored)
+            setArtifacts(await loadArtifacts(sid))
+            setPanePref(null)
             setReady(true)
             void refreshSessions()
             return
@@ -131,6 +165,8 @@ export default function AgentPage() {
         setSessionId(created.session_id)
         saveSessionId(created.session_id)
         setNodes([])
+        setArtifacts([])
+        setPanePref(null)
         await refreshSessions()
       } catch (err) {
         if (!cancelled) {
@@ -182,6 +218,8 @@ export default function AgentPage() {
         const restored = await loadNodes(sid)
         if (epoch !== viewEpochRef.current || sessionRef.current !== sid) return
         setNodes(restored)
+        setArtifacts(await loadArtifacts(sid))
+        setPanePref(null)
       } catch (err) {
         if (epoch !== viewEpochRef.current) return
         setNodes([
@@ -191,6 +229,7 @@ export default function AgentPage() {
             message: err instanceof Error ? err.message : String(err),
           },
         ])
+        setArtifacts([])
       } finally {
         if (epoch === viewEpochRef.current) setViewLoading(false)
       }
@@ -207,6 +246,8 @@ export default function AgentPage() {
       setSessionId(created.session_id)
       saveSessionId(created.session_id)
       setNodes([])
+      setArtifacts([])
+      setPanePref(null)
       await refreshSessions()
     } catch (err) {
       if (epoch !== viewEpochRef.current) return
@@ -291,6 +332,11 @@ export default function AgentPage() {
             setTurnId(ev.turn_id)
           }
           setNodes((prev) => applyStreamEvent(prev, ev))
+          if (ev.event === 'artifact_upsert' || ev.event === 'artifact_delta') {
+            setArtifacts((prev) => applyArtifactEvent(prev, ev))
+            // Keep hidden if user closed the pane; otherwise auto-show.
+            setPanePref((p) => (p === false ? false : null))
+          }
           if (ev.event === 'tool_result') void refresh()
           if (ev.event === 'turn_end') {
             void refreshSessions()
@@ -301,6 +347,7 @@ export default function AgentPage() {
                 const restored = await loadNodes(sid)
                 if (!stillThisView()) return
                 setNodes(restored)
+                setArtifacts(await loadArtifacts(sid))
               } catch {
                 /* keep streamed nodes */
               }
@@ -412,6 +459,52 @@ export default function AgentPage() {
     void start()
   }
 
+  const renameArtifact = useCallback(async (id: string, title: string) => {
+    const sid = sessionRef.current
+    if (!sid) return
+    try {
+      const { artifact } = await patchAgentArtifact(sid, id, { title })
+      setArtifacts((prev) => prev.map((a) => (a.artifact_id === id ? { ...a, ...artifact } : a)))
+    } catch (err) {
+      await appAlert(err instanceof Error ? err.message : String(err))
+    }
+  }, [])
+
+  const setArtifactStatus = useCallback(async (id: string, status: string) => {
+    const sid = sessionRef.current
+    if (!sid) return
+    try {
+      const { artifact } = await patchAgentArtifact(sid, id, { status })
+      setArtifacts((prev) => prev.map((a) => (a.artifact_id === id ? { ...a, ...artifact } : a)))
+    } catch (err) {
+      await appAlert(err instanceof Error ? err.message : String(err))
+    }
+  }, [])
+
+  const removeArtifact = useCallback(async (id: string) => {
+    const sid = sessionRef.current
+    if (!sid) return
+    const target = artifacts.find((a) => a.artifact_id === id)
+    const ok = await appConfirm({
+      title: '删除产物',
+      description: `删除「${target?.title || '未命名产物'}」？此操作不可恢复。`,
+      confirmLabel: '删除',
+      danger: true,
+    })
+    if (!ok) return
+    try {
+      await deleteAgentArtifact(sid, id)
+      setArtifacts((prev) => {
+        const next = prev.filter((a) => a.artifact_id !== id)
+        if (next.length === 0) setPanePref(null)
+        return next
+      })
+      setActiveArtifactId((cur) => (cur === id ? null : cur))
+    } catch (err) {
+      await appAlert(err instanceof Error ? err.message : String(err))
+    }
+  }, [artifacts])
+
   return (
     <div className="relative z-10 flex h-full min-h-0 flex-col">
       <ListPageHero
@@ -419,6 +512,9 @@ export default function AgentPage() {
         icon={<Bot size={20} strokeWidth={2} />}
         action={
           <>
+            {artifacts.length > 0 && !showArtifactPane ? (
+              <ArtifactPaneToggle count={artifacts.length} onOpen={() => setPanePref(true)} />
+            ) : null}
             <SessionSwitcher
               sessions={sessions}
               activeId={sessionId}
@@ -439,81 +535,119 @@ export default function AgentPage() {
         }
       />
 
-      <div className="mx-auto flex min-h-0 w-full max-w-[820px] min-w-0 flex-1 flex-col">
+      <div
+        className={`relative mx-auto flex min-h-0 w-full min-w-0 flex-1 gap-3 ${
+          showArtifactPane ? 'max-w-[1200px] flex-row' : 'max-w-[820px] flex-col'
+        }`}
+      >
         <div
-          key={sessionId ?? 'none'}
-          ref={listRef}
-          className={`min-h-0 flex-1 rounded-2xl border border-[#e4e8f0] shadow-sm ${
-            ready && !viewLoading && nodes.length === 0
-              ? 'overflow-hidden bg-[#f7f9fd] p-0'
-              : 'overflow-y-auto bg-white/90 px-5 py-5 sm:px-6'
-          }`}
+          className={`flex min-h-0 min-w-0 flex-1 flex-col ${showArtifactPane ? '' : ''}`}
         >
-          {!ready || viewLoading ? (
-            <p className="flex items-center justify-center gap-2 py-16 text-[14px] text-[#9aa0b8]">
-              <Loader2 className="animate-spin" size={16} />
-              {viewLoading ? '切换会话…' : '加载会话…'}
-            </p>
-          ) : nodes.length === 0 ? (
-            <AgentEmptyState onPick={pickExample} />
-          ) : (
-            <div className="space-y-8">
-              {turnGroups.map((g) => (
-                <TurnBlock
-                  key={g.key}
-                  nodes={g.nodes}
-                  running={running && Boolean(turnId && g.key === turnId)}
-                  defaultCollapsed={g.settled}
-                  onConfirm={onConfirm}
-                  onRewrite={rewriteUser}
-                  onRegenerate={regenerateTurn}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+          <div
+            key={sessionId ?? 'none'}
+            ref={listRef}
+            className={`min-h-0 flex-1 rounded-2xl border border-[#e4e8f0] shadow-sm ${
+              ready && !viewLoading && nodes.length === 0
+                ? 'overflow-hidden bg-[#f7f9fd] p-0'
+                : 'overflow-y-auto bg-white/90 px-5 py-5 sm:px-6'
+            }`}
+          >
+            {!ready || viewLoading ? (
+              <p className="flex items-center justify-center gap-2 py-16 text-[14px] text-[#9aa0b8]">
+                <Loader2 className="animate-spin" size={16} />
+                {viewLoading ? '切换会话…' : '加载会话…'}
+              </p>
+            ) : nodes.length === 0 ? (
+              <AgentEmptyState onPick={pickExample} />
+            ) : (
+              <div className="space-y-8">
+                {turnGroups.map((g) => (
+                  <TurnBlock
+                    key={g.key}
+                    nodes={g.nodes}
+                    running={running && Boolean(turnId && g.key === turnId)}
+                    defaultCollapsed={g.settled}
+                    onConfirm={onConfirm}
+                    onRewrite={rewriteUser}
+                    onRegenerate={regenerateTurn}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
 
-        <div className="mt-3 shrink-0">
-          <TodoDock todos={todos} />
-          <div className="rounded-2xl border border-[#e4e8f0] bg-white p-3 shadow-sm focus-within:border-[#c7d2fe] focus-within:ring-2 focus-within:ring-[#e8f0ff]">
-            <div className="flex items-center gap-2">
-              <textarea
-                ref={composerRef}
-                value={goal}
-                onChange={(e) => setGoal(e.target.value)}
-                onKeyDown={onComposerKeyDown}
-                rows={3}
-                placeholder={
-                  running
-                    ? '输入新目标将先中断当前执行再发送…'
-                    : '输入目标后按 Enter 发送（Shift+Enter 换行）…'
-                }
-                disabled={!sessionId}
-                className="min-h-[72px] flex-1 resize-none rounded-xl border-0 bg-transparent px-2 py-2 text-[15px] text-ink outline-none placeholder:text-[#b0b5c9] disabled:opacity-60"
-              />
-              {running && !goal.trim() ? (
-                <button
-                  type="button"
-                  onClick={() => void stop()}
-                  className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#111827] px-4 text-[14px] font-semibold text-white transition hover:bg-black"
-                >
-                  <Square size={16} />
-                  停止
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => void start()}
-                  disabled={!goal.trim() || !sessionId}
-                  className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#4176e6] px-4 text-[14px] font-semibold text-white transition hover:bg-[#3566d4] disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <Send size={16} />
-                  {running ? '中断并发送' : '发送'}
-                </button>
-              )}
+          <div className="mt-3 shrink-0">
+            <TodoDock todos={todos} />
+            <div className="rounded-2xl border border-[#e4e8f0] bg-white p-3 shadow-sm focus-within:border-[#c7d2fe] focus-within:ring-2 focus-within:ring-[#e8f0ff]">
+              <div className="flex items-center gap-2">
+                <textarea
+                  ref={composerRef}
+                  value={goal}
+                  onChange={(e) => setGoal(e.target.value)}
+                  onKeyDown={onComposerKeyDown}
+                  rows={3}
+                  placeholder={
+                    running
+                      ? '输入新目标将先中断当前执行再发送…'
+                      : '输入目标后按 Enter 发送（Shift+Enter 换行）…'
+                  }
+                  disabled={!sessionId}
+                  className="min-h-[72px] flex-1 resize-none rounded-xl border-0 bg-transparent px-2 py-2 text-[15px] text-ink outline-none placeholder:text-[#b0b5c9] disabled:opacity-60"
+                />
+                {running && !goal.trim() ? (
+                  <button
+                    type="button"
+                    onClick={() => void stop()}
+                    className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#111827] px-4 text-[14px] font-semibold text-white transition hover:bg-black"
+                  >
+                    <Square size={16} />
+                    停止
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void start()}
+                    disabled={!goal.trim() || !sessionId}
+                    className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#4176e6] px-4 text-[14px] font-semibold text-white transition hover:bg-[#3566d4] disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Send size={16} />
+                    {running ? '中断并发送' : '发送'}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
+
+        {showArtifactPane ? (
+          <>
+            <div className="relative hidden min-h-0 w-[min(42%,440px)] shrink-0 md:flex md:flex-col">
+              <ArtifactPane
+                className="h-full"
+                artifacts={artifacts}
+                activeId={activeArtifactId}
+                onSelect={setActiveArtifactId}
+                onHide={() => setPanePref(false)}
+                onRename={renameArtifact}
+                onDelete={removeArtifact}
+                onSetStatus={setArtifactStatus}
+              />
+            </div>
+            <div className="md:hidden">
+              <ArtifactDrawerScrim onClose={() => setPanePref(false)} />
+              <ArtifactPane
+                overlay
+                artifacts={artifacts}
+                activeId={activeArtifactId}
+                onSelect={setActiveArtifactId}
+                onHide={() => setPanePref(false)}
+                onRename={renameArtifact}
+                onDelete={removeArtifact}
+                onSetStatus={setArtifactStatus}
+              />
+            </div>
+          </>
+        ) : null}
       </div>
     </div>
   )

@@ -138,6 +138,33 @@ def export_citation(upload_id: str, format: str = "bibtex") -> str:
     return _json_result("export_citation", {"upload_id": upload_id, "format": format})
 
 
+@mcp.tool
+def publish_report(
+    title: str = "",
+    mode: str = "replace",
+    content: str = "",
+    chunk: str = "",
+    artifact_id: str | None = None,
+    status: str = "drafting",
+) -> str:
+    """Publish or stream a research report to the KingStar artifact pane (Markdown).
+
+    Use mode=replace only when creating a brand-new report.
+    To continue an interrupted or drafting report, pass that artifact_id with mode=append and chunk.
+    Set status=ready when finished.
+    """
+    args: dict[str, Any] = {
+        "title": title,
+        "mode": mode,
+        "content": content,
+        "chunk": chunk,
+        "status": status,
+    }
+    if artifact_id is not None:
+        args["artifact_id"] = artifact_id
+    return _json_result("publish_report", args)
+
+
 def create_mcp_http_app():
     """ASGI app for mounting at ``/mcp`` (path ``/`` to avoid double prefix)."""
     return mcp.http_app(path="/")

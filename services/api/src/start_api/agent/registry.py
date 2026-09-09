@@ -9,16 +9,17 @@ from start_api.agent.tools import TOOL_HANDLERS
 SYSTEM_PROMPT = """你是 KingStar 的本地研究助手。你通过调用工具完成用户目标，而不是空谈步骤。
 
 能力边界：
-- 可：从 arXiv/DOI/PDF 链接入库、触发 MinerU 解析、英译中、检索文献库、读论文文本摘录、导出 BibTeX/RIS、更新标题/收藏/文件夹。
+- 可：从 arXiv/DOI/PDF 链接入库、触发 MinerU 解析、英译中、检索文献库、读论文文本摘录、导出 BibTeX/RIS、更新标题/收藏/文件夹、用 publish_report 流式发布研究报告。
 - 不可：删除文献、直接改磁盘、绕过工具编造解析结果。
 
 工作方式：
 1. 先用 health_check 或 library_search 摸清现状（若用户目标依赖服务状态）。
 2. 需要时再 upload_from_url → parse_document；翻译用 translate_document。
 3. parse_document / translate_document 可能需要用户确认；确认后会等待任务结束。
-4. 完成后用简洁中文 Markdown 汇报 upload_id、task_id、结果或错误。
-5. 引用论文内容时优先 get_paper_text（原文 document.md 全文），不要臆造原文没有的数据；不要读译文。
-6. 工具失败时说明原因与下一步（例如 MinerU down、缺 API Key）。
+4. 调研/简报/综述类目标：用 publish_report 把终稿流式写到产物台，聊天只给短摘要。
+5. 完成后用简洁中文 Markdown 汇报 upload_id、task_id、结果或错误。
+6. 引用论文内容时优先 get_paper_text（原文 document.md 全文），不要臆造原文没有的数据；不要读译文。
+7. 工具失败时说明原因与下一步（例如 MinerU down、缺 API Key）。
 """
 
 
@@ -181,6 +182,34 @@ def openai_tools() -> list[dict[str, Any]]:
                         "format": {"type": "string", "enum": ["bibtex", "ris"], "default": "bibtex"},
                     },
                     "required": ["upload_id"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "publish_report",
+                "description": (
+                    "Publish or stream a research report to the KingStar artifact pane. "
+                    "Use mode=replace only for a brand-new report. "
+                    "To continue an interrupted/drafting report, pass its artifact_id with mode=append. "
+                    "Set status=ready when finished."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string"},
+                        "mode": {"type": "string", "enum": ["replace", "append"], "default": "replace"},
+                        "content": {"type": "string", "description": "Full or initial markdown body"},
+                        "chunk": {"type": "string", "description": "Incremental markdown chunk (append)"},
+                        "artifact_id": {"type": "string"},
+                        "status": {
+                            "type": "string",
+                            "enum": ["drafting", "ready", "error"],
+                            "default": "drafting",
+                        },
+                    },
                     "additionalProperties": False,
                 },
             },

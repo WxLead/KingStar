@@ -11,6 +11,7 @@ const SHORT: Record<string, string> = {
   get_task_status: '任务状态',
   get_paper_text: '读取正文',
   export_citation: '导出引用',
+  publish_report: '发布报告',
   todo_write: '更新计划',
   web_search: '网页搜索',
   web_fetch: '抓取网页',
@@ -48,6 +49,9 @@ export function summarizeToolArgs(tool: string, args: Record<string, unknown>): 
     return (
       pick('upload_id', 'task_id', 'path', 'file', 'doi', 'arxiv_id', 'venue', 'title') || '…'
     )
+  }
+  if (name.includes('publish_report')) {
+    return pick('title', 'artifact_id', 'status') || (args.mode === 'append' ? '追加片段' : '写入报告')
   }
   if (name.includes('todo')) {
     const todos = args.todos

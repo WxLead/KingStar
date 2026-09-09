@@ -27,7 +27,10 @@ _PERSONA = (
     "Prefer DeepSeek Harness tools for web research, todos, goals, and subagents. "
     "Use KingStar MCP tools (mcp__start__*) for the local paper library: health_check, "
     "library_search/get/update, upload_from_url, parse_document, translate_document, "
-    "get_paper_text, export_citation, get_task_status. "
+    "get_paper_text, export_citation, get_task_status, publish_report. "
+    "For research briefs / surveys / written reports, stream the deliverable with "
+    "publish_report (append chunks, then status=ready)—do not only paste long reports in chat. "
+    "Stay inside the current session workspace directory. "
     "Do not invent parse/translate results; call tools. Reply in concise Chinese Markdown "
     "with upload_id / task_id when relevant. "
     "If the user asks to stop, cancel, skip, or not parse/translate further, do not call more "
@@ -42,9 +45,40 @@ _cancel_lock = threading.Lock()
 _active_turn_id: str | None = None
 _active_session_id: str | None = None
 _active_lock = threading.Lock()
+# Live SSE sink for the in-flight turn (MCP tools / bridges push here).
+_active_emit_q: queue.Queue[str | None] | None = None
 # KingStar session_id → dsh session id valid only for the current live runtime process.
 _dsh_alias: dict[str, str] = {}
 _dsh_alias_lock = threading.Lock()
+
+
+def get_active_turn() -> tuple[str | None, str | None]:
+    with _active_lock:
+        return _active_session_id, _active_turn_id
+
+
+def push_turn_sse(etype: str, payload: dict[str, Any] | None = None, *, persist: bool = False) -> bool:
+    """Push an SSE frame onto the active turn queue. Returns False if no live turn."""
+    body = payload or {}
+    with _active_lock:
+        sid = _active_session_id
+        tid = _active_turn_id
+        q = _active_emit_q
+    if not sid or not tid or q is None:
+        return False
+    if persist:
+        frame = _emit(sid, tid, etype, body)
+    else:
+        frame = _sse(etype, {"session_id": sid, "turn_id": tid, **body})
+    q.put(frame)
+    return True
+
+
+def session_workspace(session_id: str) -> Path:
+    root = Path(os.getenv("START_DSH_WORKSPACE", str(_DEFAULT_WORKSPACE))).expanduser().resolve()
+    path = root / "sessions" / session_id
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def interrupt_session(session_id: str) -> dict[str, Any]:
@@ -169,16 +203,29 @@ def _llm_env() -> dict[str, str]:
     return out
 
 
-def _ensure_harness() -> DeepSeekHarness:
+def _ensure_harness(session_id: str | None = None) -> DeepSeekHarness:
     global _harness
+    workspace_root = Path(
+        os.getenv("START_DSH_WORKSPACE", str(_DEFAULT_WORKSPACE))
+    ).expanduser().resolve()
+    workspace_root.mkdir(parents=True, exist_ok=True)
+    cwd = session_workspace(session_id) if session_id else workspace_root
+    cwd_s = str(cwd)
+
     with _lock:
-        if _harness is not None:
+        if _harness is not None and getattr(_harness, "_start_cwd", None) == cwd_s:
+            return _harness
+
+    # Session workspace changed (or first start) — recycle runtime.
+    if _harness is not None:
+        shutdown()
+
+    with _lock:
+        if _harness is not None and getattr(_harness, "_start_cwd", None) == cwd_s:
             return _harness
 
         dsh_home = Path(os.getenv("START_DSH_HOME", str(_DEFAULT_DSH_HOME))).expanduser().resolve()
-        workspace = Path(os.getenv("START_DSH_WORKSPACE", str(_DEFAULT_WORKSPACE))).expanduser().resolve()
         dsh_home.mkdir(parents=True, exist_ok=True)
-        workspace.mkdir(parents=True, exist_ok=True)
         patch = _write_runtime_patch(dsh_home)
 
         env: dict[str, str] = {
@@ -195,7 +242,7 @@ def _ensure_harness() -> DeepSeekHarness:
         kwargs: dict[str, Any] = {
             "profile": "sdk",
             "dsh_home": str(dsh_home),
-            "cwd": str(workspace),
+            "cwd": cwd_s,
             "patches": (str(patch),),
             "env": env,
             "initialize_timeout_seconds": float(os.getenv("START_DSH_INIT_TIMEOUT", "60")),
@@ -212,6 +259,7 @@ def _ensure_harness() -> DeepSeekHarness:
 
         harness = DeepSeekHarness(**kwargs)
         harness.start()
+        setattr(harness, "_start_cwd", cwd_s)
         _harness = harness
         return harness
 
@@ -297,20 +345,107 @@ def _history_for_prompt(session_id: str, *, exclude_turn_id: str, max_msgs: int 
     return "\n".join(lines[-max_msgs:])
 
 
+_BRIEF_HINTS = (
+    "调研",
+    "简报",
+    "综述",
+    "报告",
+    "进展",
+    "survey",
+    "brief",
+    "research",
+    "literature review",
+)
+
+
+def _load_skill(name: str) -> str:
+    path = Path(__file__).resolve().parent / "skills" / name / "SKILL.md"
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def _artifacts_for_prompt(session_id: str, *, max_excerpt: int = 2800) -> str:
+    """Tell the model which reports already exist so continue/rewrite can append."""
+    from start_api.agent import artifacts
+
+    try:
+        items = artifacts.list_artifacts(session_id, limit=30)
+    except Exception:  # noqa: BLE001
+        return ""
+    if not items:
+        return ""
+
+    lines = [
+        "Existing KingStar session artifacts (IMPORTANT):",
+        "- If the user asks to continue / 续写 / 接着写 a report that is still drafting (or ready), "
+        "you MUST call mcp__start__publish_report with that exact artifact_id and mode=\"append\".",
+        "- Do NOT create a new report with mode=\"replace\" unless the user explicitly wants a new document.",
+    ]
+    for art in items:
+        if art.get("status") == "archived":
+            continue
+        kind = art.get("kind") or "file"
+        aid = art.get("artifact_id")
+        title = art.get("title") or ""
+        status = art.get("status") or ""
+        body = art.get("content") or ""
+        uri = art.get("uri") or ""
+        lines.append(
+            f"- kind={kind} status={status} artifact_id={aid} title={title!r} chars={len(body)}"
+            + (f" uri={uri}" if uri else "")
+        )
+        if kind == "report" and body.strip():
+            excerpt = body[-max_excerpt:] if len(body) > max_excerpt else body
+            prefix = "…(earlier omitted)\n" if len(body) > max_excerpt else ""
+            lines.append(f"  content_tail:\n```markdown\n{prefix}{excerpt}\n```")
+    return "\n".join(lines)
+
+
+_CONTINUE_HINTS = (
+    "续写",
+    "继续写",
+    "接着写",
+    "继续",
+    "接着",
+    "完成报告",
+    "写完",
+    "continue",
+    "resume",
+)
+
+
 def _compose_prompt(session_id: str, turn_id: str, goal: str) -> str:
+    parts: list[str] = []
     hist = _history_for_prompt(session_id, exclude_turn_id=turn_id)
-    if not hist:
-        return goal
-    return (
-        "Earlier turns in this KingStar chat (for continuity):\n"
-        f"{hist}\n\n"
-        f"Current user request:\n{goal}"
+    if hist:
+        parts.append("Earlier turns in this KingStar chat (for continuity):\n" + hist)
+
+    artifact_ctx = _artifacts_for_prompt(session_id)
+    if artifact_ctx:
+        parts.append(artifact_ctx)
+
+    goal_l = goal.lower()
+    want_brief = any(h.lower() in goal_l or h in goal for h in _BRIEF_HINTS)
+    want_continue = any(h.lower() in goal_l or h in goal for h in _CONTINUE_HINTS)
+    if want_brief or want_continue:
+        skill = _load_skill("research-brief")
+        if skill:
+            parts.append("Active skill (follow closely):\n" + skill)
+
+    parts.append(
+        "Workspace: write only under the current session directory. "
+        "For long-form research deliverables use mcp__start__publish_report. "
+        "When an open drafting report is listed above, continue it with mode=append and its artifact_id."
     )
+    parts.append("Current user request:\n" + goal)
+    return "\n\n".join(parts)
 
 
 def run_turn(session_id: str, turn_id: str, goal: str) -> Iterator[str]:
     """SSE generator: drive one dsh run and bridge notifications."""
-    global _active_turn_id, _active_session_id
+    global _active_turn_id, _active_session_id, _active_emit_q
     cancel = _cancel_event(turn_id)
     q: queue.Queue[str | None] = queue.Queue()
     error_holder: list[BaseException] = []
@@ -318,6 +453,7 @@ def run_turn(session_id: str, turn_id: str, goal: str) -> Iterator[str]:
     with _active_lock:
         _active_turn_id = turn_id
         _active_session_id = session_id
+        _active_emit_q = q
 
     yield _emit(
         session_id,
@@ -330,6 +466,7 @@ def run_turn(session_id: str, turn_id: str, goal: str) -> Iterator[str]:
     saw_assistant = {"ok": False}
     call_names: dict[str, str] = {}
     pending_call_ids: list[str] = []
+    call_args: dict[str, dict[str, Any]] = {}
 
     def on_notification_tracked(notification: Notification) -> None:
         if cancel.is_set():
@@ -340,8 +477,10 @@ def run_turn(session_id: str, turn_id: str, goal: str) -> Iterator[str]:
             if etype == "tool_call":
                 cid = str(body.get("tool_call_id") or "")
                 name = str(body.get("tool") or "")
+                args = body.get("arguments") if isinstance(body.get("arguments"), dict) else {}
                 if cid and name:
                     call_names[cid] = name
+                    call_args[cid] = args
                 if cid:
                     pending_call_ids.append(cid)
             if etype == "tool_result":
@@ -353,6 +492,20 @@ def run_turn(session_id: str, turn_id: str, goal: str) -> Iterator[str]:
                     pending_call_ids.remove(cid)
                 if cid and call_names.get(cid) and body.get("tool") in {"", "tool", None}:
                     body["tool"] = call_names[cid]
+                # Register L1 web cards from fetch results (non-blocking).
+                try:
+                    from start_api.agent.web_artifacts import maybe_register_web_artifact
+
+                    tool_name = str(body.get("tool") or call_names.get(cid) or "")
+                    maybe_register_web_artifact(
+                        session_id,
+                        turn_id,
+                        tool_name=tool_name,
+                        arguments=call_args.get(cid) or {},
+                        result=body.get("result"),
+                    )
+                except Exception:  # noqa: BLE001
+                    pass
             q.put(_emit(session_id, turn_id, etype, body))
 
     def worker() -> None:
@@ -360,7 +513,7 @@ def run_turn(session_id: str, turn_id: str, goal: str) -> Iterator[str]:
             with _run_lock:
                 if cancel.is_set():
                     return
-                harness = _ensure_harness()
+                harness = _ensure_harness(session_id)
                 # Fresh dsh session every KingStar turn; continuity via KingStar history.
                 dsh_sid = _resolve_dsh_session(session_id, turn_id)
                 prompt = _compose_prompt(session_id, turn_id, goal)
@@ -454,5 +607,6 @@ def run_turn(session_id: str, turn_id: str, goal: str) -> Iterator[str]:
             if _active_turn_id == turn_id:
                 _active_turn_id = None
                 _active_session_id = None
+                _active_emit_q = None
         _clear_cancel(turn_id)
         thread.join(timeout=2.0)
