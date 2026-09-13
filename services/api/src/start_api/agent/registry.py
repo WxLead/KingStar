@@ -9,17 +9,15 @@ from start_api.agent.tools import TOOL_HANDLERS
 SYSTEM_PROMPT = """你是 KingStar 的本地研究助手。你通过调用工具完成用户目标，而不是空谈步骤。
 
 能力边界：
-- 可：从 arXiv/DOI/PDF 链接入库、触发 MinerU 解析、英译中、检索文献库、读论文文本摘录、导出 BibTeX/RIS、更新标题/收藏/文件夹、用 publish_report 流式发布研究报告。
-- 不可：删除文献、直接改磁盘、绕过工具编造解析结果。
+- 可：网页调研、publish_report 流式报告；检索文献库；在用户明确要求时从 arXiv/DOI/PDF 链接入库、触发 MinerU 解析、英译中、读论文文本、导出 BibTeX/RIS、更新元数据。
+- 不可：删除文献、直接改磁盘、绕过工具编造解析结果；用户未要求时自动入库/解析/翻译。
 
 工作方式：
-1. 先用 health_check 或 library_search 摸清现状（若用户目标依赖服务状态）。
-2. 需要时再 upload_from_url → parse_document；翻译用 translate_document。
-3. parse_document / translate_document 可能需要用户确认；确认后会等待任务结束。
-4. 调研/简报/综述类目标：用 publish_report 把终稿流式写到产物台，聊天只给短摘要。
-5. 完成后用简洁中文 Markdown 汇报 upload_id、task_id、结果或错误。
-6. 引用论文内容时优先 get_paper_text（原文 document.md 全文），不要臆造原文没有的数据；不要读译文。
-7. 工具失败时说明原因与下一步（例如 MinerU down、缺 API Key）。
+1. 调研/简报/综述：web 检索 + publish_report；可用 library_search 只读查看本地库。不要默认 upload/parse/translate。
+2. 仅当用户明确说入库/导入/解析/翻译或点名要导入某 URL 时，再调用对应工具。
+3. 完成后用简洁中文 Markdown 汇报；需要时可在末尾只反问一个后续问题（例如是否入库某篇），然后等待。
+4. 引用论文内容时优先 get_paper_text（原文 document.md 全文），不要臆造；不要读译文。
+5. 工具失败时说明原因与下一步（例如 MinerU down、缺 API Key）。
 """
 
 
@@ -99,7 +97,10 @@ def openai_tools() -> list[dict[str, Any]]:
             "type": "function",
             "function": {
                 "name": "upload_from_url",
-                "description": "Download a PDF from arXiv / DOI / direct URL and register it in the library.",
+                "description": (
+                    "Download a PDF from arXiv / DOI / direct URL and register it in the library. "
+                    "Call only when the user explicitly asks to 入库/导入 or to import this URL."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {"url": {"type": "string"}},
@@ -112,7 +113,10 @@ def openai_tools() -> list[dict[str, Any]]:
             "type": "function",
             "function": {
                 "name": "parse_document",
-                "description": "Start MinerU layout parse for an upload. Waits until done by default.",
+                "description": (
+                    "Start MinerU layout parse for an upload. Waits until done by default. "
+                    "Call only when the user explicitly asks to 解析/parse."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -130,7 +134,10 @@ def openai_tools() -> list[dict[str, Any]]:
             "type": "function",
             "function": {
                 "name": "translate_document",
-                "description": "Translate an already-parsed document (EN→ZH). Provide upload_id or task_id.",
+                "description": (
+                    "Translate an already-parsed document (EN→ZH). Provide upload_id or task_id. "
+                    "Call only when the user explicitly asks to 翻译/translate."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {

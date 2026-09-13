@@ -1,4 +1,5 @@
 /** Shared pane chrome for reading room columns. */
+import type { HTMLAttributes, ReactNode } from 'react'
 import { ChevronRight, PanelLeftClose } from 'lucide-react'
 
 export default function ReadingPaneHeader({
@@ -8,8 +9,8 @@ export default function ReadingPaneHeader({
   onCollapse,
 }: {
   title: string
-  meta?: React.ReactNode
-  actions?: React.ReactNode
+  meta?: ReactNode
+  actions?: ReactNode
   /** Collapse this reading-room column */
   onCollapse?: () => void
 }) {
@@ -88,27 +89,29 @@ export function PaneFrame({
   collapsed: boolean
   label: string
   onExpand: () => void
-  children: React.ReactNode
+  children: ReactNode
 }) {
   return (
     <div className="relative h-full w-full min-w-0 overflow-hidden">
       <div
         className={`h-full w-full will-change-[opacity,transform] transition-[opacity,transform] duration-200 ease-out ${
           collapsed
-            ? 'pointer-events-none absolute inset-0 scale-[0.98] opacity-0'
+            ? 'pointer-events-none invisible absolute inset-0 scale-[0.98] opacity-0'
             : 'relative opacity-100'
         }`}
         aria-hidden={collapsed}
+        // When collapsed, fully disable the content subtree so it cannot steal focus/input.
+        {...(collapsed ? ({ inert: true } as HTMLAttributes<HTMLDivElement>) : null)}
       >
         {children}
       </div>
-      <div
-        className={`absolute inset-0 z-20 will-change-opacity transition-opacity duration-200 ease-out ${
-          collapsed ? 'opacity-100' : 'pointer-events-none opacity-0'
-        }`}
-      >
-        <CollapsedPaneRail label={label} onExpand={onExpand} />
-      </div>
+      {/* Only mount the rail while collapsed — an opacity-0 overlay still intercepts clicks
+          because button children default to pointer-events:auto. */}
+      {collapsed ? (
+        <div className="absolute inset-0 z-20">
+          <CollapsedPaneRail label={label} onExpand={onExpand} />
+        </div>
+      ) : null}
     </div>
   )
 }

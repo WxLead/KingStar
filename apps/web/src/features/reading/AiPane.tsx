@@ -823,7 +823,12 @@ export function AiPane({
                       ref={textareaRef}
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
                       onKeyDown={(e) => {
+                        // Don't hijack Enter/arrows while IME (e.g. 中文) is composing.
+                        const composing = e.nativeEvent.isComposing || e.keyCode === 229
+
                         if (slashOpen && slashItems.length > 0) {
                           if (e.key === 'ArrowDown') {
                             e.preventDefault()
@@ -835,7 +840,7 @@ export function AiPane({
                             setSlashIndex((i) => (i + slashItems.length - 1) % slashItems.length)
                             return
                           }
-                          if (e.key === 'Enter' && !e.shiftKey) {
+                          if (e.key === 'Enter' && !e.shiftKey && !composing) {
                             e.preventDefault()
                             const item = slashItems[Math.min(slashIndex, slashItems.length - 1)]
                             if (item) runAiSlash(item)
@@ -854,7 +859,7 @@ export function AiPane({
                           }
                         }
 
-                        if (e.key === 'Enter' && !e.shiftKey) {
+                        if (e.key === 'Enter' && !e.shiftKey && !composing) {
                           e.preventDefault()
                           void send()
                         }

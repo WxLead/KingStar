@@ -16,7 +16,17 @@
 
 <br />
 
-<img src="docs/screenshots/parse-paper.png" alt="KingStar 阅读室 — 双语阅读 · 笔记 · AI 助手" width="920" />
+<table>
+<tr>
+<td align="center" width="50%">
+<img src="docs/screenshots/agent.jpg" alt="研究助手 — 对话与调研报告" width="440" />
+</td>
+<td align="center" width="50%">
+<img src="docs/screenshots/agent2.jpg" alt="研究助手 — 工具执行与产物台" width="440" />
+</td>
+</tr>
+</table>
+<p><sub>研究助手 · 目标驱动调研 · 工具调用 · 产物台</sub></p>
 </div>
 
 ---
@@ -70,19 +80,16 @@
 
 <div align="center">
 
-<h3>阅读室 · 原文 / 译文 / 笔记 / AI 同屏</h3>
-<img src="docs/screenshots/reading.png" alt="阅读室 — 双语阅读与 AI 助手" width="920" />
-
-<br /><br />
-
 <table>
 <tr>
-<td align="center"><b>上传入口</b><br/><img src="docs/screenshots/upload.png" width="440" alt="上传"/></td>
-<td align="center"><b>文献库</b><br/><img src="docs/screenshots/library.png" width="440" alt="文献库"/></td>
-</tr>
-<tr>
-<td align="center"><b>任务管理</b><br/><img src="docs/screenshots/tasks.png" width="440" alt="任务管理"/></td>
-<td align="center"><b>系统设置</b><br/><img src="docs/screenshots/settings.png" width="440" alt="设置"/></td>
+<td align="center" width="50%">
+<b>版面解析</b><br/>
+<img src="docs/screenshots/prase-translate.jpg" alt="版面解析 — PDF 框选与译文结果" width="440" />
+</td>
+<td align="center" width="50%">
+<b>文献阅览</b><br/>
+<img src="docs/screenshots/reading.jpg" alt="阅读室 — 原文 / 译文 / 笔记 / AI" width="440" />
+</td>
 </tr>
 </table>
 

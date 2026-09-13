@@ -20,7 +20,7 @@
 | 发送 | Enter 发送，Shift+Enter 换行 |
 | 多会话 | 顶栏会话下拉切换；支持新建 / 删除（`DELETE /sessions/{id}`） |
 | 交互 | dsh 风格：用户气泡、工具折叠、Todo 停靠；有产物时右侧可隐藏产物台（报告流式 / 网页卡） |
-| 确认门 | P0 不走产品 confirm；parse/translate 由 dsh 直接调 MCP（`DSH_PERMISSION_MODE=danger-full-access`） |
+| 确认门 | P0 不走产品 confirm；parse/translate 由 dsh 直接调 MCP（`DSH_PERMISSION_MODE=danger-full-access`）。策略上：未明确要求时不要自动入库/解析/翻译，答完可反问一次。 |
 
 ---
 

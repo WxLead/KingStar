@@ -26,10 +26,9 @@ const EXAMPLES: Example[] = [
     prompt: '在文献库搜索 transformer，列出最近几篇',
   },
   {
-    title: '调研并入库',
-    hint: 'Web · 解析',
-    prompt:
-      '调研长上下文 Transformer 近期进展：网上找相关论文，挑一篇入库并解析，写中文要点',
+    title: '领域调研',
+    hint: 'Web · 报告',
+    prompt: '调研长上下文 Transformer 近期进展，写一份中文简报（先不要入库或解析）',
   },
   {
     title: '从 arXiv 导入',
@@ -96,7 +95,7 @@ export function AgentEmptyState({ onPick }: Props) {
         transition={{ duration: 0.5, delay: 0.14, ease: easeOut }}
         className="relative mt-1.5 max-w-md text-[13px] leading-relaxed text-[#6a70a0]"
       >
-        助手可以检索网页、管理待办、调度子代理，并用文献工具完成入库与解析。
+        助手可以检索网页、管理待办、调度子代理；入库与解析仅在你明确要求时执行。
       </motion.p>
 
       <motion.ul

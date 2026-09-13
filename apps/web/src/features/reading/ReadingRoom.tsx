@@ -230,12 +230,27 @@ export default function ReadingRoom({ item }: { item: UploadItem }) {
       return
     }
 
-    const dismissDraft = () => {
+    const isEditableTarget = (t: EventTarget | null) => {
+      if (!(t instanceof Node)) return false
+      const el = t instanceof Element ? t : t.parentElement
+      if (!el) return false
+      return Boolean(
+        el.closest(
+          'textarea, input, select, button, [contenteditable="true"], .ProseMirror, [data-ai-slash-menu], [data-anno-toolbar]',
+        ),
+      )
+    }
+
+    /** Drop annotation draft UI. Avoid removeAllRanges when focus is in another pane —
+     * that runs on pointerup AFTER the AI textarea focuses and clears its caret. */
+    const dismissDraft = (opts?: { clearWindowSelection?: boolean }) => {
       const root = scrollRef.current
       const article = root?.querySelector('.md-render') as HTMLElement | null
       if (article) clearDraftSelection(article)
       setSelQuote(null)
-      window.getSelection()?.removeAllRanges()
+      if (opts?.clearWindowSelection !== false) {
+        window.getSelection()?.removeAllRanges()
+      }
     }
 
     const onPointerUp = (e: PointerEvent) => {
@@ -243,20 +258,20 @@ export default function ReadingRoom({ item }: { item: UploadItem }) {
       if (!root) return
       const t = e.target
       if (!(t instanceof Node) || !root.contains(t)) {
-        dismissDraft()
+        dismissDraft({ clearWindowSelection: false })
         return
       }
       const el = t instanceof Element ? t : t.parentElement
       // Clicks on our toolbar should not re-capture
       if (el?.closest('[data-anno-toolbar]')) return
       if (!el?.closest('.md-render')) {
-        dismissDraft()
+        dismissDraft({ clearWindowSelection: !isEditableTarget(t) })
         return
       }
 
       const sel = window.getSelection()
       if (!sel || sel.isCollapsed) {
-        dismissDraft()
+        dismissDraft({ clearWindowSelection: !isEditableTarget(t) })
         return
       }
 
@@ -286,10 +301,12 @@ export default function ReadingRoom({ item }: { item: UploadItem }) {
     }
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') dismissDraft()
+      if (e.key === 'Escape') {
+        dismissDraft({ clearWindowSelection: !isEditableTarget(e.target) })
+      }
     }
 
-    const onScroll = () => dismissDraft()
+    const onScroll = () => dismissDraft({ clearWindowSelection: false })
 
     document.addEventListener('pointerup', onPointerUp)
     document.addEventListener('contextmenu', onContextMenu)

@@ -82,7 +82,11 @@ def library_update(
 
 @mcp.tool
 def upload_from_url(url: str) -> str:
-    """Download a PDF from arXiv / DOI / direct URL and register it in the library."""
+    """Download a PDF from arXiv / DOI / direct URL and register it in the library.
+
+    Call only when the user explicitly asks to 入库/导入 or to import this URL.
+    Do not use during ordinary research/survey answers.
+    """
     return _json_result("upload_from_url", {"url": url})
 
 
@@ -93,7 +97,11 @@ def parse_document(
     wait: bool = True,
     parse_backend: str = "hybrid-engine",
 ) -> str:
-    """Start MinerU layout parse for an upload. Waits until done by default."""
+    """Start MinerU layout parse for an upload. Waits until done by default.
+
+    Call only when the user explicitly asks to 解析 / parse. Never start parse
+    just because you found or listed a paper while researching.
+    """
     return _json_result(
         "parse_document",
         {
@@ -111,7 +119,10 @@ def translate_document(
     task_id: str | None = None,
     wait: bool = True,
 ) -> str:
-    """Translate an already-parsed document (EN→ZH). Provide upload_id or task_id."""
+    """Translate an already-parsed document (EN→ZH). Provide upload_id or task_id.
+
+    Call only when the user explicitly asks to 翻译 / translate.
+    """
     args: dict[str, Any] = {"wait": wait}
     if upload_id is not None:
         args["upload_id"] = upload_id
