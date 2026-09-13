@@ -4,7 +4,6 @@ import AgentPage from '@/pages/AgentPage'
 import ParsePage from '@/pages/ParsePage'
 import TasksPage from '@/pages/TasksPage'
 import LibraryPage from '@/pages/LibraryPage'
-import FavoritesPage from '@/pages/FavoritesPage'
 import ReadingPage from '@/pages/ReadingPage'
 import SettingsPage from '@/pages/SettingsPage'
 
@@ -16,7 +15,6 @@ export default function App() {
         <Route path="parse" element={<ParsePage />} />
         <Route path="tasks" element={<TasksPage />} />
         <Route path="library" element={<LibraryPage />} />
-        <Route path="favorites" element={<FavoritesPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="read/:uploadId" element={<ReadingPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

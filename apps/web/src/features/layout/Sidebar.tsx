@@ -5,7 +5,6 @@ import {
   Plus,
   LayoutList,
   Library,
-  Star,
   PanelLeftClose,
   Settings,
   Clock3,
@@ -237,7 +236,6 @@ export default function Sidebar() {
           />
           <NavItem to="/tasks" icon={<LayoutList size={22} />} label="任务管理" />
           <NavItem to="/library" icon={<Library size={22} />} label="我的文献" />
-          <NavItem to="/favorites" icon={<Star size={22} />} label="我的收藏" />
           <NavItem to="/settings" icon={<Settings size={22} />} label="通用设置" />
         </motion.nav>
 

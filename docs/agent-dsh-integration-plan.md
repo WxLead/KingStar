@@ -1,5 +1,7 @@
 # KingStar × DeepSeek Harness 真接入方案
 
+> **状态：方案已落地。** 运行时行为以 [agent.md](./agent.md) 为准；本文保留作设计背景。
+>
 > 目标：用上 **dsh 完整生态**（todo / goal / subagent / plan / web / MCP…），让研究助手能**多开会话、自动调研论文、并用 KingStar 已有工具做入库/解析/翻译/汇总**。  
 > 不是再抄一层语义；大脑换成 harness，`profile="sdk"`。
 
@@ -121,9 +123,9 @@ MCP 名建议：`start` → 模型侧工具名 `mcp__start__parse_document` 等�
 - `profile=sdk-minimal`（缺 todo/goal/subagent）  
 - 继续把自研薄 loop 当主大脑  
 
-## 与当前 `feat/agent-v2-harness` 的关系
+## 与当前代码的关系
 
-**P0 已落地**：`harness_gateway` + FastMCP `/mcp` + 多会话 UI；自研 OpenAI tool-loop 已退役（`runtime.py` 仅 re-export）。详见 [agent.md](./agent.md)。
+**已落地**：`harness_gateway` + FastMCP `/mcp` + 多会话 UI + 产物台；自研 OpenAI tool-loop 已退役。详见 [agent.md](./agent.md)。
 
 ## 验收
 

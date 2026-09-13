@@ -9,15 +9,13 @@ import {
   FileType,
   FileSpreadsheet,
   Presentation,
-  Languages,
   Trash2,
   Loader2,
-  BookOpen,
   LayoutList,
+  ScanLine,
   Download,
   ChevronDown,
   Plus,
-  RotateCcw,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -43,7 +41,6 @@ import {
   formatUploadTime,
   getTask,
   paperDisplayTitle,
-  retryTask,
   type UploadItem,
 } from '@/services/api'
 
@@ -140,9 +137,20 @@ function ActionBtn({
   )
 }
 
+function MetaChip({ children, title }: { children: React.ReactNode; title?: string }) {
+  return (
+    <span
+      title={title}
+      className="inline-flex max-w-[14rem] truncate rounded-md bg-[#eef0fb] px-1.5 py-0.5 text-[11px] font-semibold text-[#4f46e5]"
+    >
+      {children}
+    </span>
+  )
+}
+
 function TaskRow({ item }: { item: UploadItem }) {
   const navigate = useNavigate()
-  const { selectedId, setSelectedId, busyId, remove, translateOneClick, refresh } = useUploads()
+  const { selectedId, setSelectedId, busyId, remove } = useUploads()
   const stage = resolveStage(item)
   const status = stageMeta(stage)
   const fileMeta = fileIconMeta(item.filename)
@@ -150,11 +158,7 @@ function TaskRow({ item }: { item: UploadItem }) {
   const pipelineBusy = isStageBusy(stage)
   const busy = rowBusy || pipelineBusy
   const selected = selectedId === item.upload_id
-  const canTranslate =
-    !pipelineBusy &&
-    (stage === 'parsed' || stage === 'completed' || stage === 'failed' || stage === 'unprocessed')
   const [exporting, setExporting] = useState(false)
-  const [retrying, setRetrying] = useState(false)
   const [taskError, setTaskError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -180,15 +184,6 @@ function TaskRow({ item }: { item: UploadItem }) {
     navigate('/parse')
   }
 
-  const openReading = () => {
-    setSelectedId(item.upload_id)
-    navigate(`/read/${item.upload_id}`)
-  }
-
-  const canRead =
-    Boolean(item.last_task_id) &&
-    (stage === 'parsed' || stage === 'completed' || stage === 'failed' || stage === 'translating')
-
   const canExportMd =
     Boolean(item.last_task_id) &&
     (stage === 'parsed' || stage === 'completed' || stage === 'failed' || stage === 'translating')
@@ -196,17 +191,8 @@ function TaskRow({ item }: { item: UploadItem }) {
 
   const displayTitle = paperDisplayTitle(item)
   const baseName = (item.filename || 'document').replace(/\.[^.]+$/, '') || 'document'
-
-  const onTranslate = async () => {
-    try {
-      await translateOneClick(item.upload_id, {
-        parse_backend: 'pipeline',
-        task_id: item.last_task_id,
-      })
-    } catch (err) {
-      await appAlert(err instanceof Error ? err.message : '翻译启动失败')
-    }
-  }
+  const venue = item.venue?.trim() || ''
+  const year = item.year != null && Number.isFinite(item.year) ? String(item.year) : ''
 
   const onDelete = async () => {
     const ok = await appConfirm({
@@ -220,19 +206,6 @@ function TaskRow({ item }: { item: UploadItem }) {
       await remove(item.upload_id)
     } catch (err) {
       await appAlert(err instanceof Error ? err.message : '删除失败')
-    }
-  }
-
-  const onRetry = async () => {
-    if (!item.last_task_id) return
-    setRetrying(true)
-    try {
-      await retryTask(item.last_task_id)
-      await refresh()
-    } catch (err) {
-      await appAlert(err instanceof Error ? err.message : '重试失败')
-    } finally {
-      setRetrying(false)
     }
   }
 
@@ -275,7 +248,7 @@ function TaskRow({ item }: { item: UploadItem }) {
           openWorkspace()
         }
       }}
-      className={`group grid cursor-pointer grid-cols-[2.5rem_minmax(0,1fr)_5.5rem_auto] items-center gap-x-3 rounded-2xl border bg-white/90 px-4 py-3.5 backdrop-blur-sm transition ${
+      className={`group grid cursor-pointer grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-x-3 rounded-2xl border bg-white/90 px-4 py-3.5 backdrop-blur-sm transition ${
         selected
           ? 'border-[#c7c9ef] shadow-[0_0_0_1px_rgba(79,70,229,0.12)]'
           : 'border-[#eceef6] hover:-translate-y-0.5 hover:border-[#d4d7f0] hover:shadow-[0_8px_24px_-12px_rgba(79,70,229,0.25)]'
@@ -289,10 +262,14 @@ function TaskRow({ item }: { item: UploadItem }) {
         <p className="truncate text-[15px] font-semibold text-ink" title={displayTitle}>
           {displayTitle}
         </p>
-        <p className="mt-0.5 truncate text-[12px] text-[#9aa0b8]">
-          {formatBytes(item.size)}
-          {item.created_at ? ` · ${formatUploadTime(item.created_at)}` : ''}
-        </p>
+        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
+          {venue ? <MetaChip title={venue}>{venue}</MetaChip> : null}
+          {year ? <MetaChip>{year}</MetaChip> : null}
+          <span className="truncate text-[12px] text-[#9aa0b8]">
+            {formatBytes(item.size)}
+            {item.created_at ? ` · ${formatUploadTime(item.created_at)}` : ''}
+          </span>
+        </div>
         {stage === 'failed' && taskError ? (
           <p className="mt-1 truncate text-[11px] text-[#b45309]" title={taskError}>
             {taskError}
@@ -300,51 +277,19 @@ function TaskRow({ item }: { item: UploadItem }) {
         ) : null}
       </div>
 
-      <span
-        className={`inline-flex h-6 w-full items-center justify-center rounded-md text-[11px] font-semibold ${status.badge}`}
-      >
-        {status.label}
-      </span>
-
       <div
-        className="flex items-center justify-end gap-0.5"
+        className="flex shrink-0 items-center justify-end gap-1"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
       >
-        {stage === 'failed' && item.last_task_id ? (
-          <ActionBtn
-            label={retrying ? '重试中' : '重试'}
-            disabled={retrying || busy}
-            onClick={() => void onRetry()}
-          >
-            {retrying ? (
-              <Loader2 size={13} className="animate-spin" />
-            ) : (
-              <RotateCcw size={13} />
-            )}
-          </ActionBtn>
-        ) : null}
-        <ActionBtn
-          label={stage === 'translating' ? '翻译中' : '翻译'}
-          title={
-            stage === 'unprocessed' ? '未解析时将自动先分析再翻译' : undefined
-          }
-          disabled={!canTranslate || rowBusy}
-          onClick={() => void onTranslate()}
+        <span
+          className={`inline-flex h-6 items-center justify-center whitespace-nowrap rounded-md px-2 text-[11px] font-semibold ${status.badge}`}
         >
-          {stage === 'translating' ? (
-            <Loader2 size={13} className="animate-spin" />
-          ) : (
-            <Languages size={13} />
-          )}
-        </ActionBtn>
-        <ActionBtn
-          label="阅读"
-          title={canRead ? undefined : '请先完成版面分析'}
-          disabled={!canRead}
-          onClick={openReading}
-        >
-          <BookOpen size={13} />
+          {status.label}
+        </span>
+
+        <ActionBtn label="解析" title="打开版面解析" onClick={openWorkspace}>
+          <ScanLine size={13} />
         </ActionBtn>
 
         <DropdownMenu>

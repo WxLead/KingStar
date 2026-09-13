@@ -6,7 +6,8 @@
 
 > 阅读室 AI 仍是单篇问答；本页负责跨步骤执行。
 
-完整接入方案见 [agent-dsh-integration-plan.md](./agent-dsh-integration-plan.md)。
+接入设计背景见 [agent-dsh-integration-plan.md](./agent-dsh-integration-plan.md)（方案已落地，文档作参考）。
+产物台见 [agent-artifacts-plan.md](./agent-artifacts-plan.md)。
 
 ---
 

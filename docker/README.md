@@ -1,8 +1,8 @@
-# Docker · 分体部署（KingStar web + api ∥ MinerU 独立）
+# Docker · 分体部署（WIP / 待完善）
 
-**推荐架构：** KingStar 只跑产品镜像（`docker-web` / `docker-api`）；MinerU 在 GPU 机器上用官方 `mineru:latest` 单独启动。两边用 `MINERU_API_URL` 连接。
+> **状态：实验性。** 当前编排与镜像仍存在已知问题，**不推荐**作为主安装或生产路径。请优先按仓库根目录 [README.md](../README.md#-快速开始) 使用本地开发脚本。下文仅保留草稿步骤，便于后续修好后继续完善。
 
-完整说明见仓库根目录 [README.md](../README.md#a-分体-docker-部署推荐)。
+目标形态（尚未完全稳定）：KingStar 只跑产品镜像（`docker-web` / `docker-api`）；MinerU 在 GPU 机器上单独启动，两边用 `MINERU_API_URL` 连接。
 
 ```text
 本机 KingStar: web(:3000) + api(:8080)
@@ -98,3 +98,4 @@ docker compose -f docker/docker-compose.yml --env-file docker/.env up -d web api
 - **PDF worker / `.mjs`**：强刷缓存；nginx 需对 `.mjs` 返回 `application/javascript`  
 - **译文 PDF 中文黑方块 / 非宋体**：确认 `api` 镜像已 rebuild（会安装 `SIMSUN.TTF`/`TIMES.TTF` 为系统字体）；不要用 `fonts-noto-cjk` 顶替  
 - **翻译失败**：检查 `DEEPSEEK_API_KEY`
+- **Agent / MCP**：当前 Docker 路径对研究助手依赖的完善度有限，优先本地跑 BFF
